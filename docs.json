@@ -32,7 +32,7 @@
         {
           "anchor": "GitHub",
           "icon": "github",
-          "href": "https://github.com/velobaseai"
+          "href": "https://github.com/velobase"
         }
       ]
     },
@@ -101,8 +101,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/velobaseai",
-      "x": "https://x.com/velobaseai"
+      "github": "https://github.com/velobase"
     }
   },
   "contextual": {
