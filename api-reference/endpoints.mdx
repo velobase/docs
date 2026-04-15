@@ -1,0 +1,541 @@
+---
+title: "Velobase REST API: complete endpoints reference"
+sidebarTitle: "Endpoints"
+description: "Complete reference for all Velobase REST API endpoints, including request parameters, response fields, and usage examples for every operation."
+---
+
+The Velobase API is organized around REST. It accepts JSON-encoded request bodies and returns JSON-encoded responses. All endpoints are served from the base URL `https://api.velobase.io`. Every request must include a valid API key in the `Authorization` header — see [Authentication](/api-reference/authentication) for details.
+
+## Customers
+
+### Get customer balance
+
+Retrieve a customer's total, frozen, and available balances, along with a detailed breakdown of all their wallet categories (`accounts`).
+
+**`GET /v1/customers/:customer_id`**
+
+#### Path parameters
+
+<ParamField path="customer_id" type="string" required>
+  The unique identifier for this customer in your system.
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="id" type="string">
+  The customer identifier.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+  The customer's display name.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+  The customer's email address.
+</ResponseField>
+
+<ResponseField name="balance" type="object">
+  Aggregated balance totals across all wallets.
+
+  <Expandable title="properties">
+    <ResponseField name="total" type="number">
+      Total credits ever deposited.
+    </ResponseField>
+    <ResponseField name="used" type="number">
+      Credits that have been consumed.
+    </ResponseField>
+    <ResponseField name="frozen" type="number">
+      Credits currently reserved for an in-progress task.
+    </ResponseField>
+    <ResponseField name="available" type="number">
+      Credits immediately available to spend.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="accounts" type="array">
+  Per-wallet breakdown. Each element represents one wallet category.
+
+  <Expandable title="properties">
+    <ResponseField name="account_type" type="string">
+      The account type (e.g., `"CREDIT"`).
+    </ResponseField>
+    <ResponseField name="credit_type" type="string">
+      The wallet category label.
+    </ResponseField>
+    <ResponseField name="total" type="number">
+      Total credits in this wallet.
+    </ResponseField>
+    <ResponseField name="used" type="number">
+      Consumed credits in this wallet.
+    </ResponseField>
+    <ResponseField name="frozen" type="number">
+      Frozen credits in this wallet.
+    </ResponseField>
+    <ResponseField name="available" type="number">
+      Available credits in this wallet.
+    </ResponseField>
+    <ResponseField name="starts_at" type="string | null">
+      ISO 8601 datetime. Credits are inactive before this date, or `null` if not set.
+    </ResponseField>
+    <ResponseField name="expires_at" type="string | null">
+      ISO 8601 datetime. Credits expire after this date, or `null` if not set.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+  ISO 8601 datetime when this customer record was created.
+</ResponseField>
+
+#### Example request
+
+```bash
+curl https://api.velobase.io/v1/customers/user_987 \
+  -H "Authorization: Bearer vb_1234567890abcdef"
+```
+
+#### Example response
+
+```json
+{
+  "id": "user_987",
+  "name": "Alice",
+  "email": "alice@example.com",
+  "balance": {
+    "total": 1500,
+    "used": 0,
+    "frozen": 0,
+    "available": 1500
+  },
+  "accounts": [
+    {
+      "account_type": "CREDIT",
+      "credit_type": "default",
+      "total": 1500,
+      "used": 0,
+      "frozen": 0,
+      "available": 1500,
+      "starts_at": null,
+      "expires_at": null
+    }
+  ],
+  "created_at": "2026-04-07T12:00:00.000Z"
+}
+```
+
+---
+
+## Billing & credits
+
+### Deposit credits
+
+Add credits to a customer's account. If the customer does not exist yet, Velobase automatically creates them using the `name` and `email` fields you provide.
+
+**`POST /v1/billing/deposit`**
+
+#### Request parameters
+
+<ParamField body="customer_id" type="string" required>
+  The unique identifier for this customer in your system.
+</ParamField>
+
+<ParamField body="amount" type="number" required>
+  Positive integer amount to deposit.
+</ParamField>
+
+<ParamField body="idempotency_key" type="string" required>
+  Unique identifier for this deposit to prevent double processing.
+</ParamField>
+
+<ParamField body="credit_type" type="string">
+  The wallet category. Defaults to `"default"`.
+</ParamField>
+
+<ParamField body="starts_at" type="string">
+  ISO 8601 datetime. Credits are ignored before this date.
+</ParamField>
+
+<ParamField body="expires_at" type="string">
+  ISO 8601 datetime. Credits are ignored after this date.
+</ParamField>
+
+<ParamField body="name" type="string">
+  Customer's display name. Used only when creating a new customer.
+</ParamField>
+
+<ParamField body="email" type="string">
+  Customer's email address. Used only when creating a new customer.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional note for the ledger.
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="customer_id" type="string">
+  The customer identifier.
+</ResponseField>
+
+<ResponseField name="account_id" type="string">
+  The wallet (account) that received the credits.
+</ResponseField>
+
+<ResponseField name="credit_type" type="string">
+  The wallet category.
+</ResponseField>
+
+<ResponseField name="total_amount" type="number">
+  Total credits in this wallet after the deposit.
+</ResponseField>
+
+<ResponseField name="added_amount" type="number">
+  Credits added in this operation.
+</ResponseField>
+
+<ResponseField name="starts_at" type="string | null">
+  ISO 8601 credit activation date, if set.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string | null">
+  ISO 8601 credit expiry date, if set.
+</ResponseField>
+
+<ResponseField name="record_id" type="string">
+  The unique ledger record ID.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` if this was a duplicate request that returned the original result.
+</ResponseField>
+
+#### Example request
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/deposit \
+  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "amount": 1000,
+    "idempotency_key": "dep_unique_001"
+  }'
+```
+
+#### Example response
+
+```json
+{
+  "customer_id": "user_987",
+  "account_id": "acc_abc123",
+  "credit_type": "default",
+  "total_amount": 1000,
+  "added_amount": 1000,
+  "starts_at": null,
+  "expires_at": null,
+  "record_id": "rec_xyz789",
+  "is_idempotent_replay": false
+}
+```
+
+---
+
+### Direct deduct
+
+Atomically deduct credits from a customer's available balance in a single step. Use this for immediate, one-shot charges where you do not need to reserve credits first.
+
+**`POST /v1/billing/deduct`**
+
+#### Request parameters
+
+<ParamField body="customer_id" type="string" required>
+  The unique identifier for this customer in your system.
+</ParamField>
+
+<ParamField body="amount" type="number" required>
+  Positive integer amount to deduct.
+</ParamField>
+
+<ParamField body="transaction_id" type="string" required>
+  Unique identifier for this task or job.
+</ParamField>
+
+<ParamField body="credit_types" type="string[]">
+  Whitelist of wallet categories to deduct from.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional note for the ledger.
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="transaction_id" type="string">
+  Echo of the request identifier.
+</ResponseField>
+
+<ResponseField name="deducted_amount" type="number">
+  Total credits deducted.
+</ResponseField>
+
+<ResponseField name="deduct_details" type="array">
+  Breakdown by wallet. Each item contains `account_id`, `credit_type`, and `amount`.
+</ResponseField>
+
+<ResponseField name="deducted_at" type="string">
+  ISO 8601 timestamp of the deduction.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` if this was a duplicate request.
+</ResponseField>
+
+#### Example request
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/deduct \
+  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "amount": 200,
+    "transaction_id": "task_001"
+  }'
+```
+
+#### Example response
+
+```json
+{
+  "transaction_id": "task_001",
+  "deducted_amount": 200,
+  "deduct_details": [
+    {
+      "account_id": "acc_abc123",
+      "credit_type": "default",
+      "amount": 200
+    }
+  ],
+  "deducted_at": "2026-04-08T10:30:00.000Z",
+  "is_idempotent_replay": false
+}
+```
+
+---
+
+### Freeze credits
+
+Reserve a specific amount of credits for an ongoing task. Frozen credits are held exclusively for that task and cannot be spent by any other operation until they are consumed or unfrozen.
+
+**`POST /v1/billing/freeze`**
+
+#### Request parameters
+
+<ParamField body="customer_id" type="string" required>
+  The unique identifier for this customer in your system.
+</ParamField>
+
+<ParamField body="amount" type="number" required>
+  Positive integer amount to freeze.
+</ParamField>
+
+<ParamField body="transaction_id" type="string" required>
+  Unique identifier for this task or job.
+</ParamField>
+
+<ParamField body="credit_types" type="string[]">
+  Whitelist of wallet categories to freeze from.
+</ParamField>
+
+<ParamField body="description" type="string">
+  Optional note for the ledger.
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="transaction_id" type="string">
+  Echo of the request identifier.
+</ResponseField>
+
+<ResponseField name="frozen_amount" type="number">
+  Total credits frozen.
+</ResponseField>
+
+<ResponseField name="freeze_details" type="array">
+  Breakdown by wallet. Each item contains `account_id`, `credit_type`, and `amount`.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` if this was a duplicate request.
+</ResponseField>
+
+#### Example request
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/freeze \
+  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "amount": 500,
+    "transaction_id": "task_002"
+  }'
+```
+
+#### Example response
+
+```json
+{
+  "transaction_id": "task_002",
+  "frozen_amount": 500,
+  "freeze_details": [
+    {
+      "account_id": "acc_abc123",
+      "credit_type": "default",
+      "amount": 500
+    }
+  ],
+  "is_idempotent_replay": false
+}
+```
+
+---
+
+### Consume frozen credits
+
+Permanently deduct credits from a previously frozen transaction. You supply the actual amount used — which may be less than what was originally frozen — and Velobase returns any remainder to the customer's available balance.
+
+**`POST /v1/billing/consume`**
+
+#### Request parameters
+
+<ParamField body="transaction_id" type="string" required>
+  The `transaction_id` used in the original `freeze` call.
+</ParamField>
+
+<ParamField body="actual_amount" type="number" required>
+  Positive integer amount to actually deduct. Must be less than or equal to the originally frozen amount.
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="transaction_id" type="string">
+  Echo of the request identifier.
+</ResponseField>
+
+<ResponseField name="consumed_amount" type="number">
+  Credits permanently deducted from the frozen amount.
+</ResponseField>
+
+<ResponseField name="returned_amount" type="number">
+  Unused credits returned to the available balance (`frozen - consumed`).
+</ResponseField>
+
+<ResponseField name="consume_details" type="array">
+  Breakdown by wallet. Each item contains `account_id`, `credit_type`, and `amount`.
+</ResponseField>
+
+<ResponseField name="consumed_at" type="string">
+  ISO 8601 timestamp of the consumption.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` if this was a duplicate request.
+</ResponseField>
+
+#### Example request
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/consume \
+  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "task_002",
+    "actual_amount": 300
+  }'
+```
+
+#### Example response
+
+```json
+{
+  "transaction_id": "task_002",
+  "consumed_amount": 300,
+  "returned_amount": 200,
+  "consume_details": [
+    {
+      "account_id": "acc_abc123",
+      "credit_type": "default",
+      "amount": 300
+    }
+  ],
+  "consumed_at": "2026-04-08T10:35:00.000Z",
+  "is_idempotent_replay": false
+}
+```
+
+---
+
+### Unfreeze credits
+
+Release all unused frozen credits back to the customer's available balance. Use this when a task is canceled or fails and you want to return the reserved credits without consuming any.
+
+**`POST /v1/billing/unfreeze`**
+
+#### Request parameters
+
+<ParamField body="transaction_id" type="string" required>
+  The `transaction_id` used in the original `freeze` call.
+</ParamField>
+
+#### Response fields
+
+<ResponseField name="transaction_id" type="string">
+  Echo of the request identifier.
+</ResponseField>
+
+<ResponseField name="unfrozen_amount" type="number">
+  Total credits released back to the available balance.
+</ResponseField>
+
+<ResponseField name="unfreeze_details" type="array">
+  Breakdown by wallet. Each item contains `account_id`, `credit_type`, and `amount`.
+</ResponseField>
+
+<ResponseField name="unfrozen_at" type="string">
+  ISO 8601 timestamp of the unfreeze.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` if this was a duplicate request.
+</ResponseField>
+
+#### Example request
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/unfreeze \
+  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "task_002"
+  }'
+```
+
+#### Example response
+
+```json
+{
+  "transaction_id": "task_002",
+  "unfrozen_amount": 500,
+  "unfreeze_details": [
+    {
+      "account_id": "acc_abc123",
+      "credit_type": "default",
+      "amount": 500
+    }
+  ],
+  "unfrozen_at": "2026-04-08T10:40:00.000Z",
+  "is_idempotent_replay": false
+}
+```

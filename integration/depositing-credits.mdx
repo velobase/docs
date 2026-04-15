@@ -1,0 +1,249 @@
+---
+title: "Deposit credits and manage customer wallet categories"
+sidebarTitle: "Depositing credits"
+description: "Add credits to a customer's balance, organize them into wallet categories, set validity windows, and query the resulting balance breakdown."
+---
+
+Use `POST /v1/customers/deposit` to add credits to a customer. Each deposit creates a credit account record that tracks the amount, wallet category, and optional validity window. Customers are created automatically on first deposit, so you never need a separate provisioning step.
+
+## Minimal deposit
+
+The smallest valid request requires only `customer_id` and `amount`.
+
+```bash
+curl -X POST https://api.velobase.io/v1/customers/deposit \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "amount": 1000
+  }'
+```
+
+<Note>
+  If the customer identified by `customer_id` does not exist, Velobase creates the customer automatically. You do not need to call a separate customer-creation endpoint before depositing.
+</Note>
+
+## Add a wallet category
+
+Use `credit_type` to organize credits into named wallet categories. Each category appears separately in the console balance breakdown and can be targeted independently during deduction.
+
+```bash
+curl -X POST https://api.velobase.io/v1/customers/deposit \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "amount": 500,
+    "credit_type": "promo_campaign_2026",
+    "idempotency_key": "deposit_user_987_promo_2026"
+  }'
+```
+
+`credit_type` accepts any string. Common examples: `default`, `promo_campaign_2026`, `membership_gold`.
+
+## Add a validity period
+
+Use `starts_at` and `expires_at` to restrict when credits are spendable. Credits outside their validity window do not count toward the available balance.
+
+```bash
+curl -X POST https://api.velobase.io/v1/customers/deposit \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "amount": 200,
+    "credit_type": "summer_campaign_2026",
+    "starts_at": "2026-06-01T00:00:00.000Z",
+    "expires_at": "2026-06-30T23:59:59.999Z",
+    "idempotency_key": "deposit_user_987_summer_campaign_2026"
+  }'
+```
+
+Before `starts_at` the credits are inactive. After `expires_at` they are no longer counted.
+
+## Parameter reference
+
+<ParamField path="body.customer_id" type="string" required>
+  Your internal ID for the customer. If the customer does not exist, it is created automatically.
+</ParamField>
+
+<ParamField path="body.amount" type="number" required>
+  Number of credits to add. Must be greater than 0.
+</ParamField>
+
+<ParamField path="body.credit_type" type="string" default="default">
+  Wallet category for this deposit. Use any string, such as `default`, `promo_campaign_2026`, or `membership_gold`. Defaults to `default`.
+</ParamField>
+
+<ParamField path="body.starts_at" type="string">
+  ISO 8601 datetime. Before this time, the deposited credits do not count toward the available balance.
+</ParamField>
+
+<ParamField path="body.expires_at" type="string">
+  ISO 8601 datetime. After this time, the deposited credits no longer count toward the available balance. Must be later than `starts_at`.
+</ParamField>
+
+<ParamField path="body.idempotency_key" type="string">
+  Prevents duplicate deposits. Repeating a request with the same key returns the original result with `is_idempotent_replay: true` and does not create a second deposit.
+</ParamField>
+
+<ParamField path="body.name" type="string">
+  Display name for the customer. Created or updated on deposit.
+</ParamField>
+
+<ParamField path="body.email" type="string">
+  Email address for the customer. Created or updated on deposit.
+</ParamField>
+
+<ParamField path="body.metadata" type="object">
+  Arbitrary JSON attached to the customer record.
+</ParamField>
+
+<ParamField path="body.description" type="string">
+  A human-readable note for this deposit.
+</ParamField>
+
+## Deposit response
+
+```json
+{
+  "customer_id": "user_987",
+  "account_id": "...",
+  "credit_type": "summer_campaign_2026",
+  "total_amount": 1000,
+  "added_amount": 1000,
+  "starts_at": "2026-06-01T00:00:00.000Z",
+  "expires_at": "2026-06-30T23:59:59.999Z",
+  "record_id": "...",
+  "is_idempotent_replay": false
+}
+```
+
+<ResponseField name="customer_id" type="string">
+  The customer ID passed in the request.
+</ResponseField>
+
+<ResponseField name="account_id" type="string">
+  The underlying credit account created by this deposit.
+</ResponseField>
+
+<ResponseField name="credit_type" type="string">
+  Wallet category used for this deposit.
+</ResponseField>
+
+<ResponseField name="total_amount" type="number">
+  Total amount on this credit account record. Not the customer's overall balance.
+</ResponseField>
+
+<ResponseField name="added_amount" type="number">
+  Amount added by this specific request.
+</ResponseField>
+
+<ResponseField name="starts_at" type="string">
+  Start time of this credit account's validity window.
+</ResponseField>
+
+<ResponseField name="expires_at" type="string">
+  Expiry time of this credit account's validity window.
+</ResponseField>
+
+<ResponseField name="record_id" type="string">
+  The ledger record ID for this deposit.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` when the response was returned from a previous request with the same `idempotency_key`.
+</ResponseField>
+
+## Query balance after deposit
+
+Fetch the customer record to see the overall balance and per-wallet-category breakdown.
+
+```bash
+curl https://api.velobase.io/v1/customers/user_987 \
+  -H "Authorization: Bearer your_api_key_here"
+```
+
+```json
+{
+  "id": "user_987",
+  "name": "Alice",
+  "email": "alice@example.com",
+  "balance": {
+    "total": 1500,
+    "used": 0,
+    "frozen": 0,
+    "available": 1500
+  },
+  "accounts": [
+    {
+      "account_type": "CREDIT",
+      "credit_type": "default",
+      "total": 1000,
+      "used": 0,
+      "frozen": 0,
+      "available": 1000,
+      "starts_at": null,
+      "expires_at": null
+    },
+    {
+      "account_type": "CREDIT",
+      "credit_type": "promo_campaign_2026",
+      "total": 500,
+      "used": 0,
+      "frozen": 0,
+      "available": 500,
+      "starts_at": null,
+      "expires_at": null
+    }
+  ],
+  "created_at": "2026-04-07T12:00:00.000Z"
+}
+```
+
+<ResponseField name="balance.total" type="number">
+  Sum of all active credit accounts.
+</ResponseField>
+
+<ResponseField name="balance.used" type="number">
+  Credits already consumed across all accounts.
+</ResponseField>
+
+<ResponseField name="balance.frozen" type="number">
+  Credits currently reserved by in-progress staged deduction flows.
+</ResponseField>
+
+<ResponseField name="balance.available" type="number">
+  Credits available to spend: `total - used - frozen`.
+</ResponseField>
+
+<ResponseField name="accounts" type="array">
+  Per-account balance breakdown. Each entry corresponds to one deposit's credit account, identified by its `credit_type`.
+</ResponseField>
+
+## Error format
+
+All API errors return an HTTP error status and a structured `error` object.
+
+```json
+{
+  "error": {
+    "message": "starts_at must be a valid ISO datetime",
+    "type": "bad_request",
+    "code": "invalid_starts_at"
+  }
+}
+```
+
+<ResponseField name="error.message" type="string">
+  Human-readable description of the error.
+</ResponseField>
+
+<ResponseField name="error.type" type="string">
+  High-level error category, such as `bad_request`.
+</ResponseField>
+
+<ResponseField name="error.code" type="string">
+  Stable machine-readable error code for programmatic handling.
+</ResponseField>

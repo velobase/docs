@@ -1,0 +1,57 @@
+---
+title: "Velobase: high-performance billing ledger for AI apps"
+description: "Velobase is a credit billing ledger built for AI applications. Manage customer balances, freeze credits before generation, and settle the exact cost after."
+---
+
+Velobase gives your AI application a fast, reliable credit system. Deposit credits for your users, freeze a budget before a model call, then settle the exact cost when you know it — without risking negative balances or double charges.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Make your first API call in under 5 minutes
+  </Card>
+  <Card title="Staged Deduction" icon="layer-group" href="/integration/staged-deduction">
+    Freeze before generation, settle after
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
+    Complete endpoint reference with examples
+  </Card>
+  <Card title="Dashboard" icon="chart-bar" href="/dashboard/projects">
+    Manage customers, keys, and ledger in the UI
+  </Card>
+</CardGroup>
+
+## How Velobase works
+
+Velobase acts as a credit bank between your application and your customers. You top up a customer's balance, and your app deducts credits as users consume AI features.
+
+<Steps>
+  <Step title="Get an API key">
+    Sign in to the [Velobase Dashboard](https://velobase.io/dashboard), create a project, and generate an API key under **Project Settings → API Keys**.
+  </Step>
+  <Step title="Deposit credits for a user">
+    Call `POST /v1/billing/deposit` with a `customer_id` and an `amount`. Velobase creates the customer automatically if they don't exist yet.
+  </Step>
+  <Step title="Charge credits for AI work">
+    Use **direct deduction** for fixed-price tasks, or the **freeze → consume** flow for LLM calls where cost is only known after generation.
+  </Step>
+  <Step title="Track every transaction">
+    Every operation is recorded in an immutable ledger. Query customer balances and audit charges in real time from the dashboard or API.
+  </Step>
+</Steps>
+
+## Choose a billing flow
+
+<CardGroup cols={2}>
+  <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
+    Charge immediately when cost is known upfront — image generation, fixed-price API calls.
+  </Card>
+  <Card title="Staged Deduction" icon="arrows-split-up-and-left" href="/integration/staged-deduction">
+    Freeze a maximum budget, then consume the actual cost — LLM inference, async tasks.
+  </Card>
+  <Card title="Depositing Credits" icon="coins" href="/integration/depositing-credits">
+    Top up customer balances, set expiry dates, and manage wallet categories.
+  </Card>
+  <Card title="MCP Server" icon="robot" href="/integration/mcp">
+    Let your AI coding assistant write the integration code for you.
+  </Card>
+</CardGroup>

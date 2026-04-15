@@ -1,0 +1,57 @@
+---
+title: "Invite team members and manage access in Velobase"
+sidebarTitle: "Team"
+description: "Invite collaborators to your Velobase organization and control what they can do with a three-tier role system: Owner, Admin, and Developer."
+---
+
+Velobase manages collaboration at the **organization** level. When you invite someone to your organization, they gain access to all projects within it, governed by their assigned role. You can view and manage your team from **Dashboard / Organization / Team**.
+
+## Organization roles
+
+Velobase provides three roles. Every member of your organization holds exactly one of them.
+
+- **OWNER**: Has full, unrestricted control over the organization and its billing settings.
+- **ADMIN**: Can manually adjust balances, review ledgers, and manage the team. Cannot delete the organization or change other members' roles.
+- **DEVELOPER**: Can create API keys and view the ledger to debug transactions. Cannot alter a customer's balance manually or invite members.
+
+### Role permissions
+
+| Capability | OWNER | ADMIN | DEVELOPER |
+| --- | --- | --- | --- |
+| View projects, API keys, and ledger | ✓ | ✓ | ✓ |
+| Create and revoke API keys | ✓ | ✓ | ✓ |
+| Create and rename projects | ✓ | ✓ | |
+| View and manage customer balances | ✓ | ✓ | |
+| Invite new members | ✓ | ✓ | |
+| Change member roles | ✓ | | |
+| Remove members | ✓ | ✓\* | |
+| Delete the organization | ✓ | | |
+
+_\*Admins can remove other members, but they cannot remove Owners._
+
+<Note>
+Admins cannot remove Owners. If you need to remove an Owner, you must first be an Owner yourself, or contact Velobase support.
+</Note>
+
+## Inviting members
+
+Only Owners and Admins can invite new members to the organization.
+
+<Steps>
+  <Step title="Navigate to the Team page">
+    Go to **Dashboard / Organization / Team** in the sidebar.
+  </Step>
+  <Step title="Click Invite Member">
+    Click the **Invite Member** button in the top-right corner of the Team page.
+  </Step>
+  <Step title="Enter the invitee's details">
+    Type the invitee's email address and select the role you want to assign them: OWNER, ADMIN, or DEVELOPER.
+  </Step>
+  <Step title="Send the invitation">
+    Submit the form. The invitee will appear in the **Pending Invitations** section of the Team page with an expiry countdown.
+  </Step>
+</Steps>
+
+## Pending invitations
+
+Invitations expire after **7 days**. Until the invitee accepts, their entry appears under Pending Invitations alongside the remaining time before expiry. You can cancel a pending invitation at any time from the Team page.

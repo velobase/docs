@@ -1,0 +1,71 @@
+---
+title: "Use the Velobase MCP server in your AI coding editor"
+sidebarTitle: "MCP server"
+description: "Give your AI coding assistant access to Velobase SDK documentation so it can write Python and JavaScript integration code without leaving your editor."
+---
+
+Velobase provides an official Model Context Protocol (MCP) server (`@velobaseai/velobase-sdk-mcp`). Installing it in your AI coding assistant gives the agent access to the latest Velobase Python and JavaScript SDK documentation, enabling it to write correct integration code automatically without web browsing or guesswork.
+
+## Installation
+
+<Tabs>
+
+<Tab title="Cursor">
+
+If you are using Cursor, install the MCP server with one click:
+
+[Install in Cursor](https://velobase.io/cursor://anysphere.cursor-deeplink/mcp/install?name=velobase-sdk-guide&config=eyJ0eXBlIjoic3RyZWFtYWJsZV9odHRwIiwidXJsIjoiaHR0cHM6Ly92ZWxvYmFzZS5pby9hcGkvbWNwIn0=)
+
+Cursor automatically adds the server to your MCP configuration. No manual JSON editing is required.
+
+</Tab>
+
+<Tab title="Windsurf / Cline">
+
+Add the following entry to your MCP settings file (`mcp.json`, `cline_mcp_settings.json`, or the equivalent for your client):
+
+```json
+{
+  "mcpServers": {
+    "velobase-sdk-guide": {
+      "url": "https://velobase.io/api/mcp"
+    }
+  }
+}
+```
+
+This connects your client to the Velobase hosted MCP server over HTTP. Restart your editor after saving the file.
+
+</Tab>
+
+<Tab title="npx (local)">
+
+If you prefer to run the MCP server locally via `npx` rather than connecting to the hosted endpoint, use this configuration instead:
+
+```json
+{
+  "mcpServers": {
+    "velobase-sdk-guide": {
+      "command": "npx",
+      "args": ["-y", "@velobaseai/velobase-sdk-mcp@latest"]
+    }
+  }
+}
+```
+
+`npx` downloads and runs the latest version of `@velobaseai/velobase-sdk-mcp` on demand. No global installation is required.
+
+</Tab>
+
+</Tabs>
+
+## Usage
+
+Once the server is installed, you can prompt your AI assistant directly in natural language. The assistant uses the `sdk_download_and_usage` tool to fetch the relevant SDK documentation and generate accurate integration code.
+
+Example prompts to try:
+
+- _"I need to integrate Velobase billing in Python. Check how to install the SDK and write a script to consume 5 credits."_
+- _"Use the Velobase MCP to find the JavaScript SDK instructions for freezing credits."_
+- _"Write a Node.js function that deposits 100 credits for a new user using the Velobase SDK."_
+- _"Show me how to handle an insufficient balance error with the Velobase Python SDK."_

@@ -1,0 +1,85 @@
+---
+title: "Understand and handle Velobase API error responses"
+description: "Understand the standard Velobase error response format and use the full error codes reference to handle failures programmatically in your application."
+---
+
+When a Velobase API request fails, the response includes a structured JSON error object alongside a standard HTTP status code. Every error follows the same format regardless of category, so you can write a single error-handling path in your application.
+
+## Error response format
+
+All errors return an `error` object with three fields:
+
+```json
+{
+  "error": {
+    "message": "insufficient balance in selected credit_types",
+    "type": "bad_request",
+    "code": "insufficient_balance_in_selected_credit_types"
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `error.message` | string | A human-readable description of what went wrong. Use this for logs and user-facing messages. |
+| `error.type` | string | A high-level category: `bad_request`, `auth_error`, `not_found`, `conflict`, `too_many_requests`, `server_error`. |
+| `error.code` | string | A stable, machine-readable identifier. Use this field for all programmatic error handling. |
+
+Always branch on `error.code` in your code — `error.message` may change, but `error.code` values are stable across API versions.
+
+## Error codes reference
+
+<AccordionGroup>
+  <Accordion title="Authentication — 401 Unauthorized">
+    These errors occur when the `Authorization` header is missing, malformed, or the key has been deactivated.
+
+    | Code | Description |
+    |---|---|
+    | `missing_api_key` | No API key was provided in the `Authorization` header. |
+    | `invalid_api_key` | The provided API key is malformed or does not exist. |
+    | `api_key_revoked` | The API key has been revoked in the dashboard. |
+  </Accordion>
+
+  <Accordion title="Validation & routing — 400 Bad Request / 404 Not Found">
+    These errors occur when request parameters are invalid or a referenced resource does not exist.
+
+    | Code | HTTP | Description |
+    |---|---|---|
+    | `invalid_starts_at` | 400 | The `starts_at` parameter is not a valid ISO 8601 datetime. |
+    | `invalid_expires_at` | 400 | The `expires_at` parameter is not a valid ISO 8601 datetime. |
+    | `invalid_credit_types` | 400 | The `credit_types` array is empty or contains invalid strings. |
+    | `customer_not_found` | 404 | The requested `customer_id` does not exist. |
+  </Accordion>
+
+  <Accordion title="Balance & deduction — 400 Bad Request">
+    These errors occur when a billing operation cannot be completed due to insufficient funds or an invalid operation sequence.
+
+    | Code | Description |
+    |---|---|
+    | `insufficient_balance` | The customer does not have enough total available credits. |
+    | `insufficient_balance_in_selected_credit_types` | The customer has enough credits overall, but not within the specific `credit_types` requested. |
+    | `no_consumable_freeze_records` | You attempted to `consume` a transaction that was never frozen or cannot be found. |
+    | `freeze_records_already_consumed` | The frozen credits for this `transaction_id` have already been consumed. |
+    | `no_unfreezable_records` | You attempted to `unfreeze` a transaction that was never frozen, or has already been consumed or unfrozen. |
+    | `actual_amount_exceeds_frozen_amount` | The amount passed to `consume` is greater than the amount originally frozen for this transaction. |
+  </Accordion>
+
+  <Accordion title="Concurrency & consistency — 409 Conflict / 500 Internal Server Error">
+    These errors indicate a conflict between two requests or an unexpected internal failure.
+
+    | Code | HTTP | Description |
+    |---|---|---|
+    | `transaction_conflict` | 409 | The `transaction_id` was already used for a different customer. |
+    | `customer_scope_mismatch` | 409 | An operation referenced a record belonging to a different customer. |
+    | `billing_account_not_found` | 500 | An internal inconsistency where an expected billing account is missing. |
+    | `server_error` | 500 | An unexpected internal error occurred on the Velobase servers. |
+  </Accordion>
+</AccordionGroup>
+
+## Recommended handling approach
+
+Check `error.code` first, then fall back to `error.type` for any unrecognized code. Retry `server_error` responses with exponential backoff. Do not retry `insufficient_balance`, `missing_api_key`, or any validation error — these will not resolve on their own.
+
+<Warning>
+Do not use `error.message` as a key in your error-handling logic. Message text may be updated to improve clarity. Only `error.code` is guaranteed to remain stable.
+</Warning>

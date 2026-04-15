@@ -1,0 +1,47 @@
+---
+title: "Authenticate your requests to the Velobase REST API"
+description: "Learn how to authenticate with the Velobase API using API keys, understand key scoping rules, and handle common authentication errors."
+---
+
+Velobase authenticates every API request using API keys. You can create and manage your keys from the **API Keys** section of any project in the dashboard. All requests must include a valid key — unauthenticated requests are rejected with a `401 Unauthorized` response.
+
+## Bearer token
+
+Pass your API key in the `Authorization` HTTP header using the `Bearer` scheme:
+
+```
+Authorization: Bearer <your_api_key_here>
+```
+
+### Example request
+
+```bash
+curl https://api.velobase.io/v1/health \
+  -H "Authorization: Bearer vb_1234567890abcdef"
+```
+
+<Warning>
+  Never expose your API key in client-side code, public repositories, or logs. If a key is compromised, revoke it immediately from the dashboard and issue a new one.
+</Warning>
+
+## Key scoping
+
+Every API key is bound to a single project. This means the key you generate inside Project A can only access the customers and ledgers that belong to Project A.
+
+<Note>
+  A key created in Project A cannot read or modify data in Project B. If you operate multiple projects, generate a separate API key for each one.
+</Note>
+
+You can roll or revoke any API key at any time from the dashboard. Once you revoke a key, all subsequent requests using that key immediately fail with an `api_key_revoked` error — there is no grace period.
+
+## Authentication errors
+
+When a request cannot be authenticated, Velobase returns a `401 Unauthorized` status code and an error code in the response body.
+
+| Error code | Description |
+|---|---|
+| `missing_api_key` | The `Authorization` header is absent from the request. |
+| `invalid_api_key` | The key is malformed, incorrect, or belongs to a deleted project. |
+| `api_key_revoked` | The key was manually revoked in the dashboard. |
+
+For details on the full error response format, see [Handling Errors](/advanced/errors).

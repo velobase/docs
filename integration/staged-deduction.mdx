@@ -1,0 +1,298 @@
+---
+title: "Staged deduction: freeze credits, then settle the cost"
+sidebarTitle: "Staged deduction"
+description: "Reserve a credit budget before work starts, then settle the actual cost after — built for LLM inference, async jobs, and variable-cost AI operations."
+---
+
+Use the staged deduction flow when the final cost of an operation is only known after execution. You freeze a maximum budget upfront to ensure the customer has sufficient credits, then settle the actual amount once the task completes. Any unused credits are returned automatically.
+
+<Note>
+  The same `transaction_id` is shared across all three operations — freeze, consume, and unfreeze. Use a unique `transaction_id` per logical task and keep it consistent throughout the flow.
+</Note>
+
+<Steps>
+
+<Step title="Freeze">
+
+Reserve credits before starting work. Frozen credits are deducted from the available balance immediately — they cannot be spent elsewhere — but they have not been consumed yet.
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/freeze \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "transaction_id": "llm_chat_001",
+    "amount": 100
+  }'
+```
+
+**Freeze parameters**
+
+<ParamField path="body.customer_id" type="string" required>
+  The unique identifier for this customer. The customer must already exist and have enough available credits to cover the freeze amount.
+</ParamField>
+
+<ParamField path="body.transaction_id" type="string" required>
+  Unique ID for this charge transaction. Use the same value for the subsequent `consume` or `unfreeze` call.
+</ParamField>
+
+<ParamField path="body.amount" type="number" required>
+  Maximum credits to reserve. Must be greater than 0. Set this to the upper bound of expected cost.
+</ParamField>
+
+<ParamField path="body.credit_types" type="string[]">
+  Restrict the freeze to these wallet categories only. If omitted, the system may use any active credits. The same categories are used automatically during consume.
+</ParamField>
+
+<ParamField path="body.business_type" type="string">
+  Transaction category for reporting. Examples: `TASK`, `ORDER`, `TOKEN_USAGE`.
+</ParamField>
+
+<ParamField path="body.description" type="string">
+  A human-readable note for this freeze.
+</ParamField>
+
+**Freeze response**
+
+```json
+{
+  "transaction_id": "llm_chat_001",
+  "frozen_amount": 100,
+  "freeze_details": [
+    {
+      "account_id": "...",
+      "credit_type": "default",
+      "amount": 100
+    }
+  ],
+  "is_idempotent_replay": false
+}
+```
+
+<ResponseField name="transaction_id" type="string">
+  The transaction ID passed in the request.
+</ResponseField>
+
+<ResponseField name="frozen_amount" type="number">
+  Total credits reserved by this freeze.
+</ResponseField>
+
+<ResponseField name="freeze_details" type="array">
+  Breakdown of which credit accounts were frozen. The system may freeze across multiple wallet categories.
+
+  <Expandable title="freeze_details properties">
+    <ResponseField name="account_id" type="string">
+      Underlying credit account ID that was frozen.
+    </ResponseField>
+    <ResponseField name="credit_type" type="string">
+      Wallet category that was frozen.
+    </ResponseField>
+    <ResponseField name="amount" type="number">
+      Amount frozen from that account.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` when the response was returned from a previous request with the same `transaction_id`.
+</ResponseField>
+
+Returns HTTP `400` with `insufficient balance` if the customer does not have enough available credits. If `credit_types` was specified and those categories are short, the message becomes `insufficient balance in selected credit_types`.
+
+</Step>
+
+<Step title="Consume">
+
+After the task finishes, settle the actual cost. Velobase permanently consumes the specified amount and automatically returns any unused frozen credits to the available balance.
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/consume \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "llm_chat_001",
+    "actual_amount": 73
+  }'
+```
+
+In this example, `100` was frozen and `73` was actually consumed. The remaining `27` is returned to the available balance automatically.
+
+**Consume parameters**
+
+<ParamField path="body.transaction_id" type="string" required>
+  The same transaction ID used in the freeze step.
+</ParamField>
+
+<ParamField path="body.actual_amount" type="number">
+  Actual credits to consume. If less than the frozen amount, the remainder is returned. Defaults to the full frozen amount if omitted.
+</ParamField>
+
+**Consume response**
+
+```json
+{
+  "transaction_id": "llm_chat_001",
+  "consumed_amount": 73,
+  "returned_amount": 27,
+  "consume_details": [
+    {
+      "account_id": "...",
+      "credit_type": "default",
+      "amount": 73
+    }
+  ],
+  "consumed_at": "2026-04-07T12:00:00.000Z",
+  "is_idempotent_replay": false
+}
+```
+
+<ResponseField name="consumed_amount" type="number">
+  Credits permanently consumed by this operation.
+</ResponseField>
+
+<ResponseField name="returned_amount" type="number">
+  Unused frozen credits automatically returned to the available balance (`frozen_amount - actual_amount`).
+</ResponseField>
+
+<ResponseField name="consume_details" type="array">
+  Breakdown of which credit accounts were consumed.
+
+  <Expandable title="consume_details properties">
+    <ResponseField name="account_id" type="string">
+      Underlying credit account ID that was consumed.
+    </ResponseField>
+    <ResponseField name="credit_type" type="string">
+      Wallet category that was consumed.
+    </ResponseField>
+    <ResponseField name="amount" type="number">
+      Amount consumed from that account.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="consumed_at" type="string">
+  ISO 8601 timestamp when consumption completed.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` when the response was returned from a previous request with the same `transaction_id`.
+</ResponseField>
+
+</Step>
+
+<Step title="Unfreeze">
+
+If the task is cancelled before it starts or before consumption is called, release the frozen credits without consuming any. All reserved credits are returned to the available balance.
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/unfreeze \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "llm_chat_001"
+  }'
+```
+
+**Unfreeze response**
+
+```json
+{
+  "transaction_id": "llm_chat_001",
+  "unfrozen_amount": 100,
+  "unfreeze_details": [
+    {
+      "account_id": "...",
+      "credit_type": "default",
+      "amount": 100
+    }
+  ],
+  "unfrozen_at": "2026-04-07T12:01:00.000Z",
+  "is_idempotent_replay": false
+}
+```
+
+<ResponseField name="unfrozen_amount" type="number">
+  Total credits returned to the available balance.
+</ResponseField>
+
+<ResponseField name="unfreeze_details" type="array">
+  Breakdown of which credit accounts were unfrozen.
+
+  <Expandable title="unfreeze_details properties">
+    <ResponseField name="account_id" type="string">
+      Underlying credit account ID that was unfrozen.
+    </ResponseField>
+    <ResponseField name="credit_type" type="string">
+      Wallet category that was unfrozen.
+    </ResponseField>
+    <ResponseField name="amount" type="number">
+      Amount released from that account.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="unfrozen_at" type="string">
+  ISO 8601 timestamp when the unfreeze completed.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` when the response was returned from a previous request with the same `transaction_id`.
+</ResponseField>
+
+</Step>
+
+</Steps>
+
+## Wallet categories and consumption order
+
+The system manages wallet category selection automatically:
+
+- Without `credit_types` on freeze, all active credits are eligible.
+- With `credit_types` on freeze, only those categories participate in both freeze and consume.
+- Callers do not choose which wallet category is used.
+- Credits that expire sooner are handled first. When expiry is equal, older accounts are handled first.
+- Credits outside their validity window (not yet started or already expired) are ignored.
+
+## Idempotency
+
+All three operations are idempotent on `transaction_id`. Repeating any call with the same `transaction_id` returns the original result with `is_idempotent_replay: true`.
+
+## Verify the result
+
+After each step you can inspect the customer's balance to confirm the expected changes:
+
+```bash
+curl https://api.velobase.io/v1/customers/user_987 \
+  -H "Authorization: Bearer your_api_key_here"
+```
+
+- After **freeze**: `balance.frozen` increases; `balance.available` decreases.
+- After **consume**: `balance.used` increases; `balance.frozen` clears.
+- After **unfreeze**: `balance.frozen` clears; `balance.available` is restored.
+
+## Error format
+
+All API errors return an HTTP error status and a structured `error` object.
+
+```json
+{
+  "error": {
+    "message": "freeze record not found",
+    "type": "not_found",
+    "code": "freeze_record_not_found"
+  }
+}
+```
+
+<ResponseField name="error.message" type="string">
+  Human-readable description of the error.
+</ResponseField>
+
+<ResponseField name="error.type" type="string">
+  High-level error category.
+</ResponseField>
+
+<ResponseField name="error.code" type="string">
+  Stable machine-readable error code for programmatic handling.
+</ResponseField>

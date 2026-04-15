@@ -1,0 +1,75 @@
+---
+title: "Velobase pricing: Free, Pro, and Enterprise plans"
+description: "Velobase bills only on successful Deduct and Consume operations. Compare Free, Pro, and Enterprise plans and understand how usage is counted and billed."
+---
+
+Velobase uses a transaction-based pricing model: you are only charged for successful `Deduct` and `Consume` operations. Deposits, freezes, unfreezes, and balance queries never count against your usage — they are always free.
+
+## Billable vs. free operations
+
+| Operation | Billable? |
+|---|---|
+| Deposit | No |
+| Freeze | No |
+| Consume | **Yes** |
+| Unfreeze | No |
+| Deduct | **Yes** |
+| Get balance | No |
+
+Only the two operations that finalize a credit deduction from a customer's balance count as ledger transactions.
+
+## Plans
+
+| | Free | Pro | Enterprise |
+|---|---|---|---|
+| **Price** | $0 / mo | From $20 / mo | Custom |
+| **Included transactions** | 50,000 / mo | 500K – 50M / mo | Custom |
+| **Overage** | Hard limit (429) | From $0.12 / 10k ops | Volume discount |
+| **Projects** | 1 | Unlimited | Unlimited |
+| **API keys** | 2 per project | Unlimited | Unlimited |
+| **Team members** | 1 | Up to 5 | Unlimited |
+| **Support** | Community | Email | Dedicated |
+| **SLA** | — | 99.9% | 99.99% |
+
+## Pro tiers
+
+Pro plans come in five tiers. You can scale up or down at any time.
+
+| Tier | Included ops / mo | Price | Overage rate |
+|---|---|---|---|
+| Pro 500K | 500,000 | $20 / mo | $0.50 / 10k ops |
+| Pro 2M | 2,000,000 | $50 / mo | $0.30 / 10k ops |
+| Pro 5M | 5,000,000 | $100 / mo | $0.25 / 10k ops |
+| Pro 15M | 15,000,000 | $200 / mo | $0.18 / 10k ops |
+| Pro 50M | 50,000,000 | $500 / mo | $0.12 / 10k ops |
+
+<Note>
+Upgrades take effect immediately and are pro-rated for the remainder of the billing period. Downgrades take effect at the start of the next billing cycle.
+</Note>
+
+## Free plan hard limit
+
+The Free plan allows up to **50,000 ledger transactions per month**. Once you reach that limit, `Deduct` and `Consume` calls return HTTP `429`. Deposits, freezes, unfreezes, and balance queries continue to work normally.
+
+```json
+{
+  "error": {
+    "type": "too_many_requests",
+    "code": "usage_limit_exceeded",
+    "message": "monthly transaction limit reached — upgrade your plan"
+  }
+}
+```
+
+To avoid hard limits, upgrade to a Pro plan before you approach 50,000 transactions in a calendar month.
+
+## Billing cycle
+
+- Each organization has a single billing subscription.
+- The billing period is calendar-monthly, starting from the date your subscription was created.
+- Usage is tracked per organization across all projects. The dashboard shows a per-project breakdown so you can identify which projects are consuming the most transactions.
+- Pro overage charges are calculated and billed at the end of each cycle.
+
+## Enterprise
+
+For custom transaction volumes, annual invoicing, dedicated support, SSO/SAML, or custom billing rules, contact [sales@velobase.io](mailto:sales@velobase.io).

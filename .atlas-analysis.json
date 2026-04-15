@@ -1,0 +1,90 @@
+{
+  "projectType": "saas",
+  "projectName": "Velobase",
+  "projectDescription": "Velobase is a high-performance billing ledger for AI applications, enabling safe credit management with freeze-consume flows for variable-cost operations.",
+  "theme": "luma",
+  "primaryColor": "#0c142b",
+  "lightColor": "#618cd4",
+  "darkColor": "#c9ccd0",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/depositing-credits",
+              "integration/direct-deduction",
+              "integration/staged-deduction",
+              "integration/mcp"
+            ]
+          },
+          {
+            "group": "Dashboard",
+            "pages": [
+              "dashboard/projects",
+              "dashboard/customers-ledger",
+              "dashboard/team"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/idempotency",
+              "advanced/errors"
+            ]
+          },
+          {
+            "group": "Pricing",
+            "pages": [
+              "pricing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/endpoints"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Freeze-Consume billing model for variable-cost AI operations",
+    "High-concurrency credit deductions with zero race conditions",
+    "Wallet categories with expiry dates for promotional credits",
+    "Idempotent API operations to prevent double charges",
+    "Automatic customer creation on first deposit or deduction",
+    "Project-scoped API keys for environment isolation",
+    "Full immutable ledger for audit and debugging",
+    "MCP server for AI-assisted integration"
+  ],
+  "publicApiSurface": [
+    "GET /v1/customers/:customer_id",
+    "POST /v1/billing/deposit",
+    "POST /v1/billing/deduct",
+    "POST /v1/billing/freeze",
+    "POST /v1/billing/consume",
+    "POST /v1/billing/unfreeze"
+  ]
+}

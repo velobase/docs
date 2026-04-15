@@ -1,0 +1,60 @@
+---
+title: "Browse customers, wallet balances, and the ledger"
+sidebarTitle: "Customers & Ledger"
+description: "Understand how Velobase models customers as virtual accounts, organizes credits into wallet categories, and records every balance change in an immutable ledger."
+---
+
+The dashboard gives you complete visibility into your customers and every billing event that occurs in your project. Customers are virtual accounts linked to your own users by a `customer_id`, and the Ledger is the immutable record of every credit movement across all of them.
+
+## Customers
+
+Customers in Velobase act as virtual accounts. Each customer is tied to a user in your own system through a `customer_id` — the unique identifier you assign. The customer list view shows every customer in the project along with their available balance.
+
+<Note>
+You do not need to manually create customers. When you make an API call to deposit or deduct credits for a `customer_id` that does not exist yet, Velobase automatically creates the customer profile for you.
+</Note>
+
+## Wallet categories and expiry
+
+Clicking on a customer reveals their complete balance details. A single customer can hold multiple **wallet categories** (called `credit_type` in the API), each tracking a separate pool of credits.
+
+Here is an example balance breakdown for a customer named Alice (`user_987`):
+
+| Wallet | Status | Expiry | Total | Available | Frozen |
+| --- | --- | --- | --- | --- | --- |
+| `default` | ACTIVE | Never expires | 1,000 | 1,000 | 0 |
+| `promo_campaign_2026` | ACTIVE | Dec 31, 2026 | 500 | 400 | 100 |
+| **Total** | | | **1,500** | **1,400** | **100** |
+
+This separation enables two powerful behaviors:
+
+- **Expiring credits**: You can grant credits that are only valid until a specific date, such as a promotional campaign wallet. Velobase automatically ignores expired wallets when processing deductions.
+- **Consumption priority**: When you deduct credits without specifying a wallet, Velobase consumes from the wallet that expires soonest first. This maximizes the value of non-expiring credits and ensures promotional credits are used while they are still valid.
+
+## Ledger
+
+The Ledger is the single source of truth for all balance changes in a project. Every API call that modifies a balance produces an immutable Ledger record. You cannot edit or delete Ledger entries — they form a permanent, auditable history.
+
+### Operation types
+
+| Operation | Effect on balance | Description |
+| --- | --- | --- |
+| `DEPOSIT` | Adds credits | Credits are added to a customer's account. |
+| `FREEZE` | Reserves credits | Credits are set aside for an in-progress task and subtracted from the available balance. |
+| `CONSUME` | Permanently deducts credits | Frozen credits (or a direct amount) are permanently removed from the account. |
+| `UNFREEZE` | Returns reserved credits | Previously frozen credits are released back to the available balance. |
+
+### Transaction IDs and reconciliation
+
+Every operation in the Ledger carries a `transaction_id` (or `idempotency_key` for deposits) that comes from your system. This ID appears in each Ledger row, so you can trace a complete billing lifecycle end to end.
+
+For example, a single AI task (`task_xyz`) might produce four Ledger entries:
+
+| Time | Operation | Amount | Customer | Transaction ID |
+| --- | --- | --- | --- | --- |
+| 10 mins ago | FREEZE | 100 | user_987 | task_xyz |
+| 2 mins ago | CONSUME | -80 | user_987 | task_xyz |
+| 2 mins ago | UNFREEZE | +20 | user_987 | task_xyz |
+| 1 hour ago | DEPOSIT | +1,000 | user_987 | pay_abc |
+
+By filtering the Ledger by `transaction_id`, you can answer questions like _"Why was `user_987` charged 80 credits?"_ in seconds: Velobase froze 100 credits when the task started, consumed 80 when it finished, and returned the unused 20 via an unfreeze.

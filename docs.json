@@ -1,0 +1,80 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "Velobase",
+  "theme": "luma",
+  "favicon": "https://media.brand.dev/c702550f-bbda-4975-9417-7d54238d0713.png",
+  "colors": {
+    "primary": "#0c142b",
+    "light": "#618cd4",
+    "dark": "#c9ccd0"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/velobaseai"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Integration",
+            "pages": [
+              "integration/depositing-credits",
+              "integration/direct-deduction",
+              "integration/staged-deduction",
+              "integration/mcp"
+            ]
+          },
+          {
+            "group": "Dashboard",
+            "pages": [
+              "dashboard/projects",
+              "dashboard/customers-ledger",
+              "dashboard/team"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/idempotency",
+              "advanced/errors"
+            ]
+          },
+          {
+            "group": "Pricing",
+            "pages": [
+              "pricing"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/authentication"
+            ]
+          },
+          {
+            "group": "Endpoints",
+            "pages": [
+              "api-reference/endpoints"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

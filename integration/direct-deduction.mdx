@@ -1,0 +1,172 @@
+---
+title: "Direct deduction: charge credits in a single API call"
+sidebarTitle: "Direct deduction"
+description: "Deduct a known credit amount from a customer in a single API call — ideal for fixed-price image generation, API calls, and other upfront-cost operations."
+---
+
+Use `POST /v1/billing/deduct` to deduct credits from a customer's available balance in a single atomic request. The operation either succeeds in full or fails without any partial deduction, leaving no half-completed state.
+
+<Tip>
+  Use direct deduction when you know the cost before starting work — for example, a fixed-price image generation request or a metered API call with a known rate. If the final cost is only known after execution (such as for LLM inference where token count varies), use [staged deduction](/integration/staged-deduction) instead.
+</Tip>
+
+## Minimal example
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/deduct \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_987",
+    "transaction_id": "img_gen_001",
+    "amount": 5
+  }'
+```
+
+## Parameter reference
+
+<ParamField path="body.customer_id" type="string" required>
+  The unique identifier for this customer. The customer must already exist and have enough available credits.
+</ParamField>
+
+<ParamField path="body.transaction_id" type="string" required>
+  Unique ID for this charge transaction. Also serves as the idempotency key — repeating a request with the same `transaction_id` returns the original result without double-charging.
+</ParamField>
+
+<ParamField path="body.amount" type="number" required>
+  Credits to deduct. Must be greater than 0.
+</ParamField>
+
+<ParamField path="body.credit_types" type="string[]">
+  Restrict deduction to these wallet categories only. If omitted, the system may draw from any active credits. If provided and the selected categories have insufficient credits, the request fails.
+</ParamField>
+
+<ParamField path="body.business_type" type="string">
+  Transaction category for reporting. Examples: `TASK`, `ORDER`, `TOKEN_USAGE`.
+</ParamField>
+
+<ParamField path="body.description" type="string">
+  A human-readable note for this transaction.
+</ParamField>
+
+## Response
+
+```json
+{
+  "transaction_id": "img_gen_001",
+  "deducted_amount": 5,
+  "deduct_details": [
+    {
+      "account_id": "...",
+      "credit_type": "default",
+      "amount": 5
+    }
+  ],
+  "deducted_at": "2026-04-07T12:00:00.000Z",
+  "is_idempotent_replay": false
+}
+```
+
+<ResponseField name="transaction_id" type="string">
+  The unique transaction ID passed in the request.
+</ResponseField>
+
+<ResponseField name="deducted_amount" type="number">
+  Total credits actually deducted.
+</ResponseField>
+
+<ResponseField name="deduct_details" type="array">
+  Deduction breakdown. Credits may be consumed from multiple wallet categories when the amount spans more than one account.
+
+  <Expandable title="deduct_details properties">
+    <ResponseField name="account_id" type="string">
+      Underlying credit account ID used for the deduction.
+    </ResponseField>
+    <ResponseField name="credit_type" type="string">
+      Wallet category that was consumed.
+    </ResponseField>
+    <ResponseField name="amount" type="number">
+      Amount deducted from that account.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="deducted_at" type="string">
+  ISO 8601 timestamp when the deduction completed.
+</ResponseField>
+
+<ResponseField name="is_idempotent_replay" type="boolean">
+  `true` when the response was returned from a previous request with the same `transaction_id`.
+</ResponseField>
+
+## Deduction rules and consumption order
+
+The system applies these rules automatically — you do not choose which wallet category is consumed:
+
+- Without `credit_types`, the system draws from all active credits.
+- With `credit_types`, deduction is limited to those wallet categories only.
+- Credits that expire sooner are consumed first. When expiry is equal, older accounts are consumed first.
+- Credits outside their validity window (not yet started or already expired) are ignored.
+
+Use `GET /v1/customers/{customer_id}` to inspect remaining credits by wallet category after a deduction.
+
+## Insufficient balance
+
+<Warning>
+  If the customer does not have enough available credits, Velobase returns HTTP `400` and does **not** perform a partial deduction. The customer's balance is left completely unchanged.
+
+  ```json
+  {
+    "error": {
+      "message": "insufficient balance",
+      "type": "bad_request"
+    }
+  }
+  ```
+
+  When `credit_types` is provided and only those categories are short, the error message is `insufficient balance in selected credit_types` with code `insufficient_balance_in_selected_credit_types`.
+</Warning>
+
+## Idempotency
+
+`transaction_id` is the idempotency key. Sending the same `transaction_id` a second time returns the original response with `is_idempotent_replay: true` and does not produce a second charge.
+
+## Verify the result
+
+After a successful deduction, fetch the customer record to confirm the balance changes:
+
+```bash
+curl https://api.velobase.io/v1/customers/user_987 \
+  -H "Authorization: Bearer your_api_key_here"
+```
+
+Check that:
+
+- `balance.available` decreased by the deducted amount.
+- The relevant `accounts[].credit_type` entries show reduced `available` values.
+
+## Error format
+
+All API errors return an HTTP error status and a structured `error` object.
+
+```json
+{
+  "error": {
+    "message": "insufficient balance in selected credit_types",
+    "type": "bad_request",
+    "code": "insufficient_balance_in_selected_credit_types"
+  }
+}
+```
+
+<ResponseField name="error.message" type="string">
+  Human-readable description of the error.
+</ResponseField>
+
+<ResponseField name="error.type" type="string">
+  High-level error category.
+</ResponseField>
+
+<ResponseField name="error.code" type="string">
+  Stable machine-readable error code for programmatic handling.
+</ResponseField>

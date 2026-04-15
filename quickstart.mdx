@@ -1,0 +1,161 @@
+---
+title: "Quickstart: make your first Velobase API call"
+sidebarTitle: "Quickstart"
+description: "Make your first Velobase API call: get an API key, deposit credits to a customer, charge them with direct or staged deduction, and check their balance."
+---
+
+This guide walks you through the core Velobase workflow end to end. By the end you'll have deposited credits to a customer and charged them using the billing flow that fits your use case.
+
+<Note>
+  All examples use `curl`. You can use any HTTP client — no SDK required.
+</Note>
+
+<Steps>
+
+<Step title="Get your API key">
+
+Sign in to the [Velobase Dashboard](https://velobase.io/dashboard). If this is your first time, create a new organization and project when prompted.
+
+Go to **Project Settings → API Keys** and generate a new key. Copy it — you'll use it as the `Authorization` header in every request.
+
+<Warning>
+  Keep your API key secret. Do not commit it to source control or expose it in client-side code.
+</Warning>
+
+</Step>
+
+<Step title="Deposit credits to a customer">
+
+Give a customer their starting credit balance. If the `customer_id` you provide doesn't exist yet, Velobase creates the customer automatically.
+
+```bash
+curl -X POST https://api.velobase.io/v1/customers/deposit \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_123",
+    "amount": 100
+  }'
+```
+
+This deposits `100` credits to `user_123`.
+
+</Step>
+
+<Step title="Charge credits for an AI operation">
+
+Once a customer has credits, you can charge them. Choose the flow that matches your use case.
+
+<Tabs>
+
+<Tab title="Option A: Direct deduction">
+
+Use direct deduction when the cost is fixed and known before the operation starts — for example, image generation with a flat credit price or a known API call cost.
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/deduct \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_123",
+    "transaction_id": "img_gen_001",
+    "amount": 20
+  }'
+```
+
+This deducts `20` credits from `user_123` immediately. The `transaction_id` is a unique identifier you provide for idempotency — use the same ID to safely retry the request without double-charging.
+
+</Tab>
+
+<Tab title="Option B: Staged deduction (freeze-consume)">
+
+Use staged deduction when the final cost is only known after the operation completes — for example, an LLM call where token usage determines the cost.
+
+**Step 1: Freeze credits before the operation**
+
+Reserve a maximum budget before the work starts. The frozen amount is no longer available to spend elsewhere.
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/freeze \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": "user_123",
+    "transaction_id": "llm_task_001",
+    "amount": 20
+  }'
+```
+
+This reserves up to `20` credits for `llm_task_001`.
+
+**Step 2: Consume the actual cost after the operation**
+
+Once you know the real cost, settle the charge. Velobase deducts the actual amount and automatically returns the unused portion.
+
+```bash
+curl -X POST https://api.velobase.io/v1/billing/consume \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transaction_id": "llm_task_001",
+    "actual_amount": 12
+  }'
+```
+
+Velobase consumes `12` credits and returns the remaining `8` to the customer's available balance.
+
+<Tip>
+  If the operation is cancelled before it completes, call `POST /v1/billing/unfreeze` with the `transaction_id` instead of `consume`. This releases the frozen credits back to the customer's available balance without charging anything.
+</Tip>
+
+</Tab>
+
+</Tabs>
+
+</Step>
+
+<Step title="Check the customer's balance">
+
+Retrieve the current balance for any customer to see their total, used, frozen, and available credits.
+
+```bash
+curl https://api.velobase.io/v1/customers/user_123 \
+  -H "Authorization: Bearer your_api_key_here"
+```
+
+Response:
+
+```json
+{
+  "id": "user_123",
+  "balance": {
+    "total": 100,
+    "used": 12,
+    "frozen": 0,
+    "available": 88
+  }
+}
+```
+
+The `available` field is what matters for spend checks — it reflects credits that are neither used nor currently frozen by another in-flight operation.
+
+</Step>
+
+</Steps>
+
+## What's next
+
+<CardGroup cols={2}>
+  <Card title="Depositing credits" icon="coins" href="/integration/depositing-credits">
+    Wallet categories, validity periods, and balance breakdown in detail.
+  </Card>
+  <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">
+    Full reference for fixed-price charging, including idempotency behavior.
+  </Card>
+  <Card title="Staged deduction" icon="layer-group" href="/integration/staged-deduction">
+    Deep dive into the freeze-consume flow, partial consumes, and cancellations.
+  </Card>
+  <Card title="API reference" icon="code" href="/api-reference/endpoints">
+    Complete endpoint reference with request and response schemas.
+  </Card>
+</CardGroup>
