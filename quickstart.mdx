@@ -1,32 +1,22 @@
 ---
-title: "Quickstart: make your first Velobase API call"
+title: "Quickstart"
 sidebarTitle: "Quickstart"
-description: "Make your first Velobase API call: get an API key, deposit credits to a customer, charge them with direct or staged deduction, and check their balance."
+description: "Make your first billing API call in under 5 minutes."
 ---
-
-This guide walks you through the core Velobase workflow end to end. By the end you'll have deposited credits to a customer and charged them using the billing flow that fits your use case.
-
-<Note>
-  All examples use `curl`. You can use any HTTP client — no SDK required.
-</Note>
 
 <Steps>
 
-<Step title="Get your API key">
+<Step title="Get your API Key">
 
-Sign in to the [Velobase Dashboard](https://velobase.io/dashboard). If this is your first time, create a new organization and project when prompted.
-
-Go to **Project Settings → API Keys** and generate a new key. Copy it — you'll use it as the `Authorization` header in every request.
-
-<Warning>
-  Keep your API key secret. Do not commit it to source control or expose it in client-side code.
-</Warning>
+1. Sign in to the [Velobase Dashboard](https://velobase.io/dashboard).
+2. Create a new organization and project if you haven't already.
+3. Go to **Project Settings → API Keys** and generate a new key.
 
 </Step>
 
-<Step title="Deposit credits to a customer">
+<Step title="Add Credits to a User">
 
-Give a customer their starting credit balance. If the `customer_id` you provide doesn't exist yet, Velobase creates the customer automatically.
+Start by giving a user some credits. If the user does not exist yet, Velobase creates them automatically.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -38,19 +28,21 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   }'
 ```
 
-This deposits `100` credits to `user_123`.
 
 </Step>
 
-<Step title="Charge credits for an AI operation">
+<Step title="Choose a Billing Flow">
 
-Once a customer has credits, you can charge them. Choose the flow that matches your use case.
+Once the user has credits, you can charge them in two ways:
+
+- Use **direct deduction** when the cost is known upfront
+- Use **staged deduction** when the final cost is only known after execution
 
 <Tabs>
 
-<Tab title="Option A: Direct deduction">
+<Tab title="Option A: Direct Deduction">
 
-Use direct deduction when the cost is fixed and known before the operation starts — for example, image generation with a flat credit price or a known API call cost.
+Use this for fixed-price operations such as image generation or a known API call cost.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/deduct \
@@ -63,17 +55,15 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   }'
 ```
 
-This deducts `20` credits from `user_123` immediately. The `transaction_id` is a unique identifier you provide for idempotency — use the same ID to safely retry the request without double-charging.
+This deducts `20` credits immediately.
 
 </Tab>
 
-<Tab title="Option B: Staged deduction (freeze-consume)">
+<Tab title="Option B: Staged Deduction">
 
-Use staged deduction when the final cost is only known after the operation completes — for example, an LLM call where token usage determines the cost.
+Use this when you only know the maximum budget before the task starts.
 
-**Step 1: Freeze credits before the operation**
-
-Reserve a maximum budget before the work starts. The frozen amount is no longer available to spend elsewhere.
+**Freeze first**
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/freeze \
@@ -86,11 +76,9 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   }'
 ```
 
-This reserves up to `20` credits for `llm_task_001`.
+This reserves `20` credits before the task starts.
 
-**Step 2: Consume the actual cost after the operation**
-
-Once you know the real cost, settle the charge. Velobase deducts the actual amount and automatically returns the unused portion.
+**Consume the actual cost**
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/consume \
@@ -102,11 +90,9 @@ curl -X POST https://api.velobase.io/v1/billing/consume \
   }'
 ```
 
-Velobase consumes `12` credits and returns the remaining `8` to the customer's available balance.
+Velobase consumes `12` credits and automatically returns the remaining `8`.
 
-<Tip>
-  If the operation is cancelled before it completes, call `POST /v1/billing/unfreeze` with the `transaction_id` instead of `consume`. This releases the frozen credits back to the customer's available balance without charging anything.
-</Tip>
+If the task is cancelled, call `unfreeze` instead of `consume`.
 
 </Tab>
 
@@ -114,9 +100,7 @@ Velobase consumes `12` credits and returns the remaining `8` to the customer's a
 
 </Step>
 
-<Step title="Check the customer's balance">
-
-Retrieve the current balance for any customer to see their total, used, frozen, and available credits.
+<Step title="Check the Balance">
 
 ```bash
 curl https://api.velobase.io/v1/customers/user_123 \
@@ -137,25 +121,24 @@ Response:
 }
 ```
 
-The `available` field is what matters for spend checks — it reflects credits that are neither used nor currently frozen by another in-flight operation.
 
 </Step>
 
 </Steps>
 
-## What's next
+## Next Steps
 
-<CardGroup cols={2}>
-  <Card title="Depositing credits" icon="coins" href="/integration/depositing-credits">
-    Wallet categories, validity periods, and balance breakdown in detail.
+<Columns cols={2}>
+  <Card title="Depositing Credits" icon="coins" href="/integration/depositing-credits">
+    Wallet categories, validity periods, and balance breakdown.
   </Card>
-  <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">
-    Full reference for fixed-price charging, including idempotency behavior.
+  <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
+    Charge immediately when cost is known.
   </Card>
-  <Card title="Staged deduction" icon="layer-group" href="/integration/staged-deduction">
-    Deep dive into the freeze-consume flow, partial consumes, and cancellations.
+  <Card title="Staged Deduction" icon="layer-group" href="/integration/staged-deduction">
+    Freeze first, then settle the actual cost.
   </Card>
-  <Card title="API reference" icon="code" href="/api-reference/endpoints">
-    Complete endpoint reference with request and response schemas.
+  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
+    Complete endpoint reference.
   </Card>
-</CardGroup>
+</Columns>

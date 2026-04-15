@@ -1,42 +1,64 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "name": "Velobase",
-  "theme": "luma",
+  "theme": "mint",
   "favicon": "https://media.brand.dev/c702550f-bbda-4975-9417-7d54238d0713.png",
   "colors": {
-    "primary": "#0c142b",
-    "light": "#618cd4",
-    "dark": "#c9ccd0"
+    "primary": "#2D2D2D",
+    "light": "#6366f1",
+    "dark": "#2D2D2D"
   },
   "navbar": {
+    "links": [
+      {
+        "label": "Support",
+        "href": "mailto:support@velobase.io"
+      }
+    ],
     "primary": {
-      "type": "github",
-      "href": "https://github.com/velobaseai"
+      "type": "button",
+      "label": "Dashboard",
+      "href": "https://velobase.io/dashboard"
     }
   },
   "navigation": {
+    "global": {
+      "anchors": [
+        {
+          "anchor": "Velobase Home",
+          "icon": "house",
+          "href": "https://velobase.io"
+        },
+        {
+          "anchor": "GitHub",
+          "icon": "github",
+          "href": "https://github.com/velobaseai"
+        }
+      ]
+    },
     "tabs": [
       {
-        "tab": "Documentation",
+        "tab": "Guides",
         "groups": [
           {
-            "group": "Get Started",
+            "group": "Getting Started",
             "pages": [
+              "index",
               "introduction",
               "quickstart"
             ]
           },
           {
-            "group": "Integration",
+            "group": "Integration Guides",
             "pages": [
+              "integration/mcp",
               "integration/depositing-credits",
               "integration/direct-deduction",
-              "integration/staged-deduction",
-              "integration/mcp"
+              "integration/staged-deduction"
             ]
           },
           {
-            "group": "Dashboard",
+            "group": "Dashboard & Management",
             "pages": [
               "dashboard/projects",
               "dashboard/customers-ledger",
@@ -44,10 +66,10 @@
             ]
           },
           {
-            "group": "Advanced",
+            "group": "Advanced Topics",
             "pages": [
-              "advanced/idempotency",
-              "advanced/errors"
+              "advanced/errors",
+              "advanced/idempotency"
             ]
           },
           {
@@ -76,5 +98,15 @@
         ]
       }
     ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/velobaseai",
+      "x": "https://x.com/velobaseai"
+    }
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "cursor", "vscode"],
+    "display": "header"
   }
 }

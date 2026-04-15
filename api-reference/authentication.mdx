@@ -1,47 +1,39 @@
 ---
-title: "Authenticate your requests to the Velobase REST API"
-description: "Learn how to authenticate with the Velobase API using API keys, understand key scoping rules, and handle common authentication errors."
+title: "Authentication"
+sidebarTitle: "Authentication"
+description: "Authenticate your API requests securely."
 ---
 
-Velobase authenticates every API request using API keys. You can create and manage your keys from the **API Keys** section of any project in the dashboard. All requests must include a valid key — unauthenticated requests are rejected with a `401 Unauthorized` response.
+Velobase uses API keys to authenticate requests. You can create and manage API keys from your dashboard under the **API Keys** section of any project.
 
-## Bearer token
+## Bearer Token
 
-Pass your API key in the `Authorization` HTTP header using the `Bearer` scheme:
+Provide your API key in the `Authorization` HTTP header using the `Bearer` scheme.
 
 ```
 Authorization: Bearer <your_api_key_here>
 ```
 
-### Example request
+### Example Request
 
 ```bash
 curl https://api.velobase.io/v1/health \
   -H "Authorization: Bearer vb_1234567890abcdef"
 ```
 
-<Warning>
-  Never expose your API key in client-side code, public repositories, or logs. If a key is compromised, revoke it immediately from the dashboard and issue a new one.
-</Warning>
+## Key Scoping
 
-## Key scoping
+- **Project Isolation**: Every API key is scoped to a specific project. An API key created in Project A cannot access customers or ledgers in Project B.
+- **Roll and Revoke**: You can revoke an API key at any time from the dashboard if you suspect it has been compromised. Requests using a revoked key will immediately start failing with an `api_key_revoked` error.
 
-Every API key is bound to a single project. This means the key you generate inside Project A can only access the customers and ledgers that belong to Project A.
+## Authentication Errors
 
-<Note>
-  A key created in Project A cannot read or modify data in Project B. If you operate multiple projects, generate a separate API key for each one.
-</Note>
+If your request cannot be authenticated, Velobase returns a `401 Unauthorized` status code.
 
-You can roll or revoke any API key at any time from the dashboard. Once you revoke a key, all subsequent requests using that key immediately fail with an `api_key_revoked` error — there is no grace period.
-
-## Authentication errors
-
-When a request cannot be authenticated, Velobase returns a `401 Unauthorized` status code and an error code in the response body.
-
-| Error code | Description |
+| Error Code | Reason |
 |---|---|
-| `missing_api_key` | The `Authorization` header is absent from the request. |
-| `invalid_api_key` | The key is malformed, incorrect, or belongs to a deleted project. |
-| `api_key_revoked` | The key was manually revoked in the dashboard. |
+| `missing_api_key` | The `Authorization` header is missing. |
+| `invalid_api_key` | The provided key is malformed, incorrect, or belongs to a deleted project. |
+| `api_key_revoked` | The key has been manually revoked in the dashboard. |
 
-For details on the full error response format, see [Handling Errors](/advanced/errors).
+*For more details on error formats, see [Handling Errors](/advanced/errors).*

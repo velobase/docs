@@ -1,13 +1,14 @@
 ---
-title: "Understand and handle Velobase API error responses"
-description: "Understand the standard Velobase error response format and use the full error codes reference to handle failures programmatically in your application."
+title: "Handling Errors"
+sidebarTitle: "Handling Errors"
+description: "Understand Velobase API error responses and common error codes."
 ---
 
-When a Velobase API request fails, the response includes a structured JSON error object alongside a standard HTTP status code. Every error follows the same format regardless of category, so you can write a single error-handling path in your application.
+When an API request fails, Velobase returns a standard JSON error response alongside an appropriate HTTP status code.
 
-## Error response format
+## Error Format
 
-All errors return an `error` object with three fields:
+All errors return a structured `error` object containing three fields:
 
 ```json
 {
@@ -25,9 +26,9 @@ All errors return an `error` object with three fields:
 | `error.type` | string | A high-level category: `bad_request`, `auth_error`, `not_found`, `conflict`, `too_many_requests`, `server_error`. |
 | `error.code` | string | A stable, machine-readable identifier. Use this field for all programmatic error handling. |
 
-Always branch on `error.code` in your code — `error.message` may change, but `error.code` values are stable across API versions.
+## Error Codes Reference
 
-## Error codes reference
+Below is a list of common `error.code` values you may encounter, organized by category.
 
 <AccordionGroup>
   <Accordion title="Authentication — 401 Unauthorized">
@@ -76,10 +77,3 @@ Always branch on `error.code` in your code — `error.message` may change, but `
   </Accordion>
 </AccordionGroup>
 
-## Recommended handling approach
-
-Check `error.code` first, then fall back to `error.type` for any unrecognized code. Retry `server_error` responses with exponential backoff. Do not retry `insufficient_balance`, `missing_api_key`, or any validation error — these will not resolve on their own.
-
-<Warning>
-Do not use `error.message` as a key in your error-handling logic. Message text may be updated to improve clarity. Only `error.code` is guaranteed to remain stable.
-</Warning>

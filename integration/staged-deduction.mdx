@@ -1,20 +1,20 @@
 ---
-title: "Staged deduction: freeze credits, then settle the cost"
-sidebarTitle: "Staged deduction"
-description: "Reserve a credit budget before work starts, then settle the actual cost after — built for LLM inference, async jobs, and variable-cost AI operations."
+title: "Staged Deduction"
+sidebarTitle: "Staged Deduction"
+description: "When cost is unknown upfront, freeze credits first and settle the actual cost later."
 ---
 
-Use the staged deduction flow when the final cost of an operation is only known after execution. You freeze a maximum budget upfront to ensure the customer has sufficient credits, then settle the actual amount once the task completes. Any unused credits are returned automatically.
+Use the `freeze -> consume / unfreeze` flow when cost is unknown upfront.
 
-<Note>
-  The same `transaction_id` is shared across all three operations — freeze, consume, and unfreeze. Use a unique `transaction_id` per logical task and keep it consistent throughout the flow.
-</Note>
+This is the right choice for LLM inference, async tasks, and flows where final cost is only known after execution.
+
+`transaction_id` is the unique ID for this charge transaction and stays the same across freeze, consume, and unfreeze.
 
 <Steps>
 
 <Step title="Freeze">
 
-Reserve credits before starting work. Frozen credits are deducted from the available balance immediately — they cannot be spent elsewhere — but they have not been consumed yet.
+Reserve a maximum budget before starting work. After freezing, credits are no longer available to spend, but they have not been consumed yet.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/freeze \
@@ -27,7 +27,7 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   }'
 ```
 
-**Freeze parameters**
+**Freeze Parameters**
 
 <ParamField path="body.customer_id" type="string" required>
   The unique identifier for this customer. The customer must already exist and have enough available credits to cover the freeze amount.
@@ -53,7 +53,7 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   A human-readable note for this freeze.
 </ParamField>
 
-**Freeze response**
+**Freeze Response**
 
 ```json
 {
@@ -98,13 +98,15 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   `true` when the response was returned from a previous request with the same `transaction_id`.
 </ResponseField>
 
-Returns HTTP `400` with `insufficient balance` if the customer does not have enough available credits. If `credit_types` was specified and those categories are short, the message becomes `insufficient balance in selected credit_types`.
+Returns `400` with `insufficient balance` if the user does not have enough available credits.
+
+If `credit_types` is provided during `freeze`, and the selected wallet categories do not have enough credits, the error message becomes `insufficient balance in selected credit_types`.
 
 </Step>
 
 <Step title="Consume">
 
-After the task finishes, settle the actual cost. Velobase permanently consumes the specified amount and automatically returns any unused frozen credits to the available balance.
+Settle the actual cost after the task finishes. Any unused credits are returned automatically.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/consume \
@@ -116,9 +118,9 @@ curl -X POST https://api.velobase.io/v1/billing/consume \
   }'
 ```
 
-In this example, `100` was frozen and `73` was actually consumed. The remaining `27` is returned to the available balance automatically.
+Example: freeze `100`, finish with an actual cost of `73`, and the remaining `27` is automatically returned.
 
-**Consume parameters**
+**Consume Parameters**
 
 <ParamField path="body.transaction_id" type="string" required>
   The same transaction ID used in the freeze step.
@@ -128,7 +130,7 @@ In this example, `100` was frozen and `73` was actually consumed. The remaining 
   Actual credits to consume. If less than the frozen amount, the remainder is returned. Defaults to the full frozen amount if omitted.
 </ParamField>
 
-**Consume response**
+**Consume Response**
 
 ```json
 {
@@ -181,9 +183,9 @@ In this example, `100` was frozen and `73` was actually consumed. The remaining 
 
 </Step>
 
-<Step title="Unfreeze">
+<Step title="Unfreeze (Cancel)">
 
-If the task is cancelled before it starts or before consumption is called, release the frozen credits without consuming any. All reserved credits are returned to the available balance.
+Release frozen credits without consuming. Use when the task is cancelled.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/unfreeze \
@@ -194,7 +196,7 @@ curl -X POST https://api.velobase.io/v1/billing/unfreeze \
   }'
 ```
 
-**Unfreeze response**
+**Unfreeze Response**
 
 ```json
 {
@@ -244,36 +246,36 @@ curl -X POST https://api.velobase.io/v1/billing/unfreeze \
 
 </Steps>
 
-## Wallet categories and consumption order
+## Wallet Categories and Consumption Order
 
-The system manages wallet category selection automatically:
-
-- Without `credit_types` on freeze, all active credits are eligible.
-- With `credit_types` on freeze, only those categories participate in both freeze and consume.
-- Callers do not choose which wallet category is used.
-- Credits that expire sooner are handled first. When expiry is equal, older accounts are handled first.
-- Credits outside their validity window (not yet started or already expired) are ignored.
+- The system automatically freezes and consumes from all available credits.
+- If `credit_types` is provided during `freeze`, only those wallet categories are eligible for this transaction.
+- Callers do not choose which wallet category to use.
+- Credits that expire sooner are handled first; if expiry is the same, older accounts are handled first.
+- Only credits that are currently active participate in freeze and consume. Credits that have not started yet or have already expired are ignored.
+- Use the customer balance API to inspect remaining credits by `credit_type`.
 
 ## Idempotency
 
-All three operations are idempotent on `transaction_id`. Repeating any call with the same `transaction_id` returns the original result with `is_idempotent_replay: true`.
+All three operations are idempotent on `transaction_id`. Duplicate calls return the original result with `is_idempotent_replay: true`.
 
-## Verify the result
-
-After each step you can inspect the customer's balance to confirm the expected changes:
+## Verify the Result
 
 ```bash
 curl https://api.velobase.io/v1/customers/user_987 \
   -H "Authorization: Bearer your_api_key_here"
 ```
 
-- After **freeze**: `balance.frozen` increases; `balance.available` decreases.
-- After **consume**: `balance.used` increases; `balance.frozen` clears.
-- After **unfreeze**: `balance.frozen` clears; `balance.available` is restored.
+After each step, check:
 
-## Error format
+- whether `balance.frozen` increases after freeze
+- whether `balance.used` increases after consume
+- whether `balance.available` changes as expected
+- which `accounts[].credit_type` entries were used
 
-All API errors return an HTTP error status and a structured `error` object.
+## Error Format
+
+All API errors return an HTTP error status and a structured `error` object:
 
 ```json
 {

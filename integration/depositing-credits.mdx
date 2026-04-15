@@ -1,14 +1,12 @@
 ---
-title: "Deposit credits and manage customer wallet categories"
-sidebarTitle: "Depositing credits"
-description: "Add credits to a customer's balance, organize them into wallet categories, set validity windows, and query the resulting balance breakdown."
+title: "Depositing Credits"
+sidebarTitle: "Depositing Credits"
+description: "Add credits to a user and group them by wallet category."
 ---
 
-Use `POST /v1/customers/deposit` to add credits to a customer. Each deposit creates a credit account record that tracks the amount, wallet category, and optional validity window. Customers are created automatically on first deposit, so you never need a separate provisioning step.
+Use `POST /v1/customers/deposit` to add credits to a user.
 
-## Minimal deposit
-
-The smallest valid request requires only `customer_id` and `amount`.
+## Minimal Example
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -20,13 +18,11 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   }'
 ```
 
-<Note>
-  If the customer identified by `customer_id` does not exist, Velobase creates the customer automatically. You do not need to call a separate customer-creation endpoint before depositing.
-</Note>
+If the user does not exist, it will be created automatically.
 
-## Add a wallet category
+## Add a Wallet Category
 
-Use `credit_type` to organize credits into named wallet categories. Each category appears separately in the console balance breakdown and can be targeted independently during deduction.
+Use `credit_type` when you want this deposit to show up under a specific wallet category in the console and balance breakdown.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -40,11 +36,11 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   }'
 ```
 
-`credit_type` accepts any string. Common examples: `default`, `promo_campaign_2026`, `membership_gold`.
+Use any string for `credit_type`, for example: `default`, `promo_campaign_2026`, `membership_gold`.
 
-## Add a validity period
+## Add a Validity Period
 
-Use `starts_at` and `expires_at` to restrict when credits are spendable. Credits outside their validity window do not count toward the available balance.
+Use `starts_at` and `expires_at` when these credits should only be usable during a specific time window.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -62,7 +58,7 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
 
 Before `starts_at` the credits are inactive. After `expires_at` they are no longer counted.
 
-## Parameter reference
+## Parameter Reference
 
 <ParamField path="body.customer_id" type="string" required>
   Your internal ID for the customer. If the customer does not exist, it is created automatically.
@@ -104,7 +100,7 @@ Before `starts_at` the credits are inactive. After `expires_at` they are no long
   A human-readable note for this deposit.
 </ParamField>
 
-## Deposit response
+## Deposit Response
 
 ```json
 {
@@ -156,9 +152,7 @@ Before `starts_at` the credits are inactive. After `expires_at` they are no long
   `true` when the response was returned from a previous request with the same `idempotency_key`.
 </ResponseField>
 
-## Query balance after deposit
-
-Fetch the customer record to see the overall balance and per-wallet-category breakdown.
+## Query Balance and Wallet Categories
 
 ```bash
 curl https://api.velobase.io/v1/customers/user_987 \
@@ -222,9 +216,9 @@ curl https://api.velobase.io/v1/customers/user_987 \
   Per-account balance breakdown. Each entry corresponds to one deposit's credit account, identified by its `credit_type`.
 </ResponseField>
 
-## Error format
+## Error Format
 
-All API errors return an HTTP error status and a structured `error` object.
+All API errors return an HTTP error status and a structured `error` object:
 
 ```json
 {

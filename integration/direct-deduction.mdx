@@ -1,16 +1,16 @@
 ---
-title: "Direct deduction: charge credits in a single API call"
-sidebarTitle: "Direct deduction"
-description: "Deduct a known credit amount from a customer in a single API call — ideal for fixed-price image generation, API calls, and other upfront-cost operations."
+title: "Direct Deduction"
+sidebarTitle: "Direct Deduction"
+description: "Deduct credits directly from a user's available balance when cost is known."
 ---
 
-Use `POST /v1/billing/deduct` to deduct credits from a customer's available balance in a single atomic request. The operation either succeeds in full or fails without any partial deduction, leaving no half-completed state.
+Use `POST /v1/billing/deduct` to deduct credits from a user's available balance in a single request.
 
-<Tip>
-  Use direct deduction when you know the cost before starting work — for example, a fixed-price image generation request or a metered API call with a known rate. If the final cost is only known after execution (such as for LLM inference where token count varies), use [staged deduction](/integration/staged-deduction) instead.
-</Tip>
+This is the right choice for fixed-price image generation, fixed-cost API calls, and other one-time operations where cost is known upfront.
 
-## Minimal example
+If cost is unknown in advance, or you need to reserve credits before settlement, use [staged deduction](/integration/staged-deduction) instead.
+
+## Minimal Example
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/deduct \
@@ -23,7 +23,7 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   }'
 ```
 
-## Parameter reference
+## Parameters
 
 <ParamField path="body.customer_id" type="string" required>
   The unique identifier for this customer. The customer must already exist and have enough available credits.
@@ -99,55 +99,52 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   `true` when the response was returned from a previous request with the same `transaction_id`.
 </ResponseField>
 
-## Deduction rules and consumption order
+## Deduction Rules and Wallet Categories
 
-The system applies these rules automatically — you do not choose which wallet category is consumed:
+- The system automatically deducts from all available credits.
+- If `credit_types` is provided, deduction is limited to those wallet categories only.
+- Callers do not choose which wallet category to consume from.
+- Credits that expire sooner are consumed first; if expiry is the same, older accounts are consumed first.
+- Only credits that are currently active are eligible for deduction. Credits that have not started yet or have already expired are ignored.
+- Use the customer balance API to inspect remaining credits by `credit_type`.
 
-- Without `credit_types`, the system draws from all active credits.
-- With `credit_types`, deduction is limited to those wallet categories only.
-- Credits that expire sooner are consumed first. When expiry is equal, older accounts are consumed first.
-- Credits outside their validity window (not yet started or already expired) are ignored.
+## Insufficient Balance
 
-Use `GET /v1/customers/{customer_id}` to inspect remaining credits by wallet category after a deduction.
+Returns `400` if the customer doesn't have enough available credits:
 
-## Insufficient balance
-
-<Warning>
-  If the customer does not have enough available credits, Velobase returns HTTP `400` and does **not** perform a partial deduction. The customer's balance is left completely unchanged.
-
-  ```json
-  {
-    "error": {
-      "message": "insufficient balance",
-      "type": "bad_request"
-    }
+```json
+{
+  "error": {
+    "message": "insufficient balance",
+    "type": "bad_request"
   }
-  ```
+}
+```
 
-  When `credit_types` is provided and only those categories are short, the error message is `insufficient balance in selected credit_types` with code `insufficient_balance_in_selected_credit_types`.
-</Warning>
+If `credit_types` is provided, the error message becomes `insufficient balance in selected credit_types` when the selected wallet categories do not have enough credits.
+
+Failed requests do not produce a partial deduction and do not leave behind a half-completed state.
 
 ## Idempotency
 
-`transaction_id` is the idempotency key. Sending the same `transaction_id` a second time returns the original response with `is_idempotent_replay: true` and does not produce a second charge.
+Same `transaction_id` -> same result, `is_idempotent_replay: true`, no double charge.
 
-## Verify the result
-
-After a successful deduction, fetch the customer record to confirm the balance changes:
+## Verify the Result
 
 ```bash
 curl https://api.velobase.io/v1/customers/user_987 \
   -H "Authorization: Bearer your_api_key_here"
 ```
 
-Check that:
+After deduction, check:
 
-- `balance.available` decreased by the deducted amount.
-- The relevant `accounts[].credit_type` entries show reduced `available` values.
+- whether `balance.available` decreased
+- which `accounts[].credit_type` entries were consumed
+- whether each `accounts[].available` value changed as expected
 
-## Error format
+## Error Format
 
-All API errors return an HTTP error status and a structured `error` object.
+All API errors return an HTTP error status and a structured `error` object:
 
 ```json
 {

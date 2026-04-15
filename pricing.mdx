@@ -1,11 +1,21 @@
 ---
-title: "Velobase pricing: Free, Pro, and Enterprise plans"
-description: "Velobase bills only on successful Deduct and Consume operations. Compare Free, Pro, and Enterprise plans and understand how usage is counted and billed."
+title: "Plans & Billing"
+sidebarTitle: "Plans & Billing"
+description: "VeloBase pricing plans, billing cycles, and what counts as a transaction."
 ---
 
-Velobase uses a transaction-based pricing model: you are only charged for successful `Deduct` and `Consume` operations. Deposits, freezes, unfreezes, and balance queries never count against your usage — they are always free.
+# Pricing
 
-## Billable vs. free operations
+VeloBase charges based on **Ledger Transactions** — only successful `Deduct` and `Consume` operations count. Deposits, freezes, unfreezes, and balance queries are always free.
+
+## What counts as a transaction?
+
+Only two operation types are billable:
+
+- **Deduct** — a direct, one-step deduction from a customer's balance.
+- **Consume** — the second step of a staged deduction (freeze → consume).
+
+Everything else is free:
 
 | Operation | Billable? |
 |---|---|
@@ -15,8 +25,6 @@ Velobase uses a transaction-based pricing model: you are only charged for succes
 | Unfreeze | No |
 | Deduct | **Yes** |
 | Get balance | No |
-
-Only the two operations that finalize a credit deduction from a customer's balance count as ledger transactions.
 
 ## Plans
 
@@ -33,7 +41,7 @@ Only the two operations that finalize a credit deduction from a customer's balan
 
 ## Pro tiers
 
-Pro plans come in five tiers. You can scale up or down at any time.
+Pro plans come in five tiers. Pick the volume that fits, and scale up or down at any time.
 
 | Tier | Included ops / mo | Price | Overage rate |
 |---|---|---|---|
@@ -43,13 +51,11 @@ Pro plans come in five tiers. You can scale up or down at any time.
 | Pro 15M | 15,000,000 | $200 / mo | $0.18 / 10k ops |
 | Pro 50M | 50,000,000 | $500 / mo | $0.12 / 10k ops |
 
-<Note>
-Upgrades take effect immediately and are pro-rated for the remainder of the billing period. Downgrades take effect at the start of the next billing cycle.
-</Note>
+Upgrades take effect immediately and are pro-rated. Downgrades take effect at the next billing period.
 
-## Free plan hard limit
+## Free plan limits
 
-The Free plan allows up to **50,000 ledger transactions per month**. Once you reach that limit, `Deduct` and `Consume` calls return HTTP `429`. Deposits, freezes, unfreezes, and balance queries continue to work normally.
+The Free plan allows up to **50,000 ledger transactions per month**. Once the limit is reached, `Deduct` and `Consume` API calls return HTTP `429`:
 
 ```json
 {
@@ -61,14 +67,14 @@ The Free plan allows up to **50,000 ledger transactions per month**. Once you re
 }
 ```
 
-To avoid hard limits, upgrade to a Pro plan before you approach 50,000 transactions in a calendar month.
+Deposits, freezes, unfreezes, and balance queries continue to work normally.
 
 ## Billing cycle
 
 - Each organization has a single billing subscription.
-- The billing period is calendar-monthly, starting from the date your subscription was created.
-- Usage is tracked per organization across all projects. The dashboard shows a per-project breakdown so you can identify which projects are consuming the most transactions.
-- Pro overage charges are calculated and billed at the end of each cycle.
+- The billing period is calendar-monthly from the date of subscription creation.
+- Usage is tracked per organization across all projects. The dashboard shows a per-project breakdown.
+- Pro overage is billed at the end of each cycle.
 
 ## Enterprise
 

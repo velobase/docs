@@ -1,90 +1,42 @@
 ---
-title: "Velobase: credit billing ledger for AI applications"
+title: "Introduction"
 sidebarTitle: "Introduction"
-description: "Learn what Velobase is, how its credit model works, and when to use direct deduction vs the freeze-consume flow for your AI application."
+description: "What is Velobase?"
 ---
 
-Velobase is an open-source, high-performance billing ledger built for AI applications. This page explains the problem it solves, the core concepts you'll work with, and how to choose the right billing flow for your use case.
+**Velobase is an open-source, high-performance billing ledger designed for AI applications.**
 
-## The problem with billing AI apps
+When you build AI apps, billing is hard because you don't know the exact cost upfront (e.g., streaming LLM output). Velobase solves this by acting as a high-speed "credit bank" for your application.
 
-Billing for AI workloads is hard because you often don't know the exact cost before the work starts. A streaming LLM call might consume 200 tokens or 2,000 — you can't know upfront. Standard payment flows assume a known price at charge time, which breaks down for inference, async tasks, and multi-step pipelines.
+## Core Capabilities
 
-Velobase solves this by acting as a high-speed credit bank inside your application. You deposit credits to a customer's balance, and your app deducts them as AI work happens — safely, without race conditions or negative balances.
+<AccordionGroup>
+  <Accordion title="Freeze-Consume Model" icon="layer-group">
+    Safely freeze an estimated amount of credits before an AI generation, and consume the exact amount afterward. Zero risk of negative balances.
+  </Accordion>
+  <Accordion title="High Concurrency" icon="bolt">
+    Built to handle thousands of token deductions per second without race conditions.
+  </Accordion>
+  <Accordion title="API First" icon="code">
+    Manage customers, top up balances, and deduct credits purely via REST API.
+  </Accordion>
+</AccordionGroup>
 
-<Note>
-  Velobase is API-first. Every operation — depositing credits, charging customers, checking balances — is a REST call. There is no SDK required to get started.
-</Note>
+## Let's Build
 
-## Core concepts
+Don't read about it — build with it. Head over to the [Quickstart](/quickstart) to make your first billing API call in under 5 minutes.
 
-### Credits
-
-Credits are the unit of value in Velobase. You define what one credit is worth in your application — it could map to a dollar amount, a token budget, or an abstract points system. Customers hold a balance of credits, and your app deducts from that balance as they use AI features.
-
-### Customers
-
-A customer in Velobase maps to a user or account in your system. You identify customers by a `customer_id` that you provide — typically your own user ID or account ID. Velobase creates the customer automatically on first deposit, so you don't need a separate registration step.
-
-### Balance breakdown
-
-Every customer balance has four components:
-
-| Field       | Description                                                         |
-| ----------- | ------------------------------------------------------------------- |
-| `total`     | All credits ever deposited for this customer                        |
-| `used`      | Credits that have been permanently consumed                         |
-| `frozen`    | Credits reserved for an in-progress operation, not yet settled      |
-| `available` | Credits available to spend (`total − used − frozen`)                |
-
-<Tip>
-  Always check `available` — not `total` — when deciding whether a customer can afford an operation. Frozen credits are already committed to another in-flight request.
-</Tip>
-
-### Direct deduction
-
-Direct deduction charges a customer immediately for a known amount. Call `POST /v1/billing/deduct` with the cost and Velobase deducts it from the customer's available balance in one step. Use this when the price is fixed before the work starts.
-
-### Freeze-consume model
-
-The freeze-consume flow is a two-step charge for operations where the final cost is only known after execution:
-
-1. **Freeze** — before the work starts, reserve an estimated (maximum) amount from the customer's balance. The frozen credits are no longer available to spend elsewhere.
-2. **Consume** — after the work completes, settle the actual cost. Velobase deducts the real amount and automatically returns any unused frozen credits.
-
-If the operation is cancelled before it completes, call `unfreeze` instead of `consume` to release the reserved credits.
-
-## When to use each billing flow
-
-| Scenario                                     | Recommended flow     |
-| -------------------------------------------- | -------------------- |
-| Image generation with a fixed credit price   | Direct deduction     |
-| Known API call cost (e.g., a fixed fee)      | Direct deduction     |
-| LLM inference (token count unknown upfront)  | Freeze-consume       |
-| Async AI task with variable compute time     | Freeze-consume       |
-| Multi-step pipeline with uncertain total     | Freeze-consume       |
-
-<Note>
-  When in doubt, prefer the freeze-consume flow. It protects against negative balances even if your estimated cost is wrong, and it makes your ledger auditable at every step.
-</Note>
-
-## High concurrency by design
-
-Velobase is built to handle thousands of simultaneous credit operations without race conditions. Balance checks and deductions are atomic, so two concurrent requests for the same customer cannot both succeed if only one has enough credits.
-
-## Next steps
-
-<CardGroup cols={2}>
+<Columns cols={2}>
   <Card title="Quickstart" icon="rocket" href="/quickstart">
-    Make your first API call in under 5 minutes — deposit credits and charge a customer.
+    Make your first API call in under 5 minutes.
   </Card>
   <Card title="Depositing credits" icon="coins" href="/integration/depositing-credits">
-    Learn about wallet categories, validity periods, and balance management.
+    Wallet categories, validity periods, and balance management.
   </Card>
   <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">
-    Charge customers immediately when the cost is known upfront.
+    Charge immediately when cost is known upfront.
   </Card>
   <Card title="Staged deduction" icon="layer-group" href="/integration/staged-deduction">
-    Freeze a budget before generation, then settle the exact cost after.
+    Freeze a budget, then settle the exact cost after.
   </Card>
-</CardGroup>
+</Columns>

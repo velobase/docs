@@ -1,41 +1,26 @@
 ---
-title: "Manage projects and billing environments in Velobase"
+title: "Projects"
 sidebarTitle: "Projects"
-description: "Projects are the top-level isolation unit in Velobase. Each project has its own API keys, customers, and billing records that never intermingle."
+description: "Organize your billing namespaces with projects."
 ---
 
-A **project** is the top-level isolation unit in Velobase. Every API key, customer, and billing record belongs to exactly one project — data never leaks between projects. Use separate projects to keep different applications, environments, or clients completely independent under the same organization.
+A **project** is the top-level isolation unit in Velobase. Each project has its own API keys, customers, and billing accounts. Data never leaks between projects.
 
-## Creating a project
+Use separate projects to keep different apps, environments, or clients fully isolated. For example, you might create `my-saas-prod` for production traffic and `my-saas-staging` for testing — both live under the same organization, but their customers and balances are completely independent.
 
-When your organization has no projects yet, the dashboard shows an empty state prompting you to create your first one.
+## Creating a Project
 
-<Steps>
-  <Step title="Open the organization dashboard">
-    Navigate to **Dashboard / Organization**. If no projects exist, you will see an empty state with a **Create project** button.
-  </Step>
-  <Step title="Click Create project">
-    Click **Create project** to open the creation dialog.
-  </Step>
-  <Step title="Name your project">
-    Enter a name for the project. Names are for your own reference only and can be changed later from the project's Settings page.
-  </Step>
-  <Step title="Confirm">
-    Submit the form. Velobase creates the project and takes you directly into it.
-  </Step>
-</Steps>
+When your organization has no projects yet, the dashboard shows an empty state with a prompt to create your first one.
 
-<Tip>
-Use a naming convention that encodes both the product and the environment, for example `my-saas-prod` and `my-saas-staging`. This keeps the project list easy to scan as your organization grows.
-</Tip>
+Click **Create project**, give it a name, and you are ready to go. Project names are for your own reference and can be changed later.
 
-## Project list
+## Project List
 
-Once you have projects, the organization dashboard displays them as a card grid. Each card shows the project name, the number of API keys, and the total customer count at a glance. Click any card to enter that project.
+Once you have projects, the organization dashboard shows them as a card grid. Each card displays the project name, API key count, and customer count at a glance. Click any card to enter that project.
 
-## Inside a project
+## Inside a Project
 
-After entering a project, the sidebar on the left exposes four sections:
+After entering a project, a sidebar appears on the left with four sections:
 
 | Section | What it does |
 | --- | --- |
@@ -44,26 +29,18 @@ After entering a project, the sidebar on the left exposes four sections:
 | **API Keys** | Create, view, and revoke API keys scoped to this project. |
 | **Settings** | Rename the project or manage other project-level configurations. |
 
-## Isolation model
+## Isolation Model
 
-Each project is a fully independent billing namespace. The three pillars of isolation are:
+Each project is a fully independent billing namespace:
 
-- **API keys** are scoped to a single project. A key from project A cannot read or write customers in project B.
-- **Customers** belong to exactly one project. The same `customer_id` string in two different projects refers to two entirely separate customers with independent balances.
-- **Billing records** — deposits, deductions, and freezes — are project-scoped and never cross project boundaries.
+- **API Keys** are scoped to a single project. A key from project A cannot access customers in project B.
+- **Customers** belong to exactly one project. The same `customer_id` in two different projects refers to two different customers with separate balances.
+- **Billing records** (deposits, deductions, freezes) are project-scoped and never cross boundaries.
 
-This hard isolation means you can run a production project and a staging project side by side without any risk of test data contaminating real balances.
+This means you can safely use one project for production and another for testing without any risk of interference.
 
-<Tip>
-For multi-tenant platforms where you operate several distinct products, give each product its own project. This produces clean per-product reporting and ensures an incident in one product's billing data cannot affect another.
-</Tip>
+## Tips
 
-## Best practices
-
-<Tip>
-**Staging vs. production**: Always create a dedicated staging project (e.g., `my-app-staging`) rather than mixing test API calls into your production project. Because customers and balances are project-scoped, staging deposits and deductions will never affect production totals.
-</Tip>
-
-- **Testing**: Use a dedicated project for test traffic. You can deposit and consume credits freely without touching production data.
-- **Multi-product**: Give each product its own project for clean separation and independent reporting.
-- **Renaming**: Project names can be changed at any time from the **Settings** page. Renaming a project does not affect its API keys, customers, or billing records.
+- **Testing**: Create a dedicated project (e.g. `my-app-test`) instead of mixing test data into your production project.
+- **Multi-tenant**: If you operate multiple products, give each one its own project for clean separation.
+- **Renaming**: Project names can be changed at any time from the Settings page without affecting API keys or data.

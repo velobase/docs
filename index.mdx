@@ -1,57 +1,121 @@
 ---
-title: "Velobase: high-performance billing ledger for AI apps"
-description: "Velobase is a credit billing ledger built for AI applications. Manage customer balances, freeze credits before generation, and settle the exact cost after."
+title: "Introduction"
+description: "What is Velobase?"
+icon: "house"
 ---
 
-Velobase gives your AI application a fast, reliable credit system. Deposit credits for your users, freeze a budget before a model call, then settle the exact cost when you know it — without risking negative balances or double charges.
+## What is Velobase?
 
-<CardGroup cols={2}>
-  <Card title="Quick Start" icon="rocket" href="/quickstart">
-    Make your first API call in under 5 minutes
-  </Card>
-  <Card title="Staged Deduction" icon="layer-group" href="/integration/staged-deduction">
-    Freeze before generation, settle after
-  </Card>
-  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
-    Complete endpoint reference with examples
-  </Card>
-  <Card title="Dashboard" icon="chart-bar" href="/dashboard/projects">
-    Manage customers, keys, and ledger in the UI
-  </Card>
-</CardGroup>
+**Velobase is an open-source, high-performance billing ledger designed for AI applications.**
 
-## How Velobase works
+When you build AI apps, billing is hard because you don't know the exact cost upfront (e.g., streaming LLM output). Velobase solves this by acting as a high-speed "credit bank" for your application.
 
-Velobase acts as a credit bank between your application and your customers. You top up a customer's balance, and your app deducts credits as users consume AI features.
+<Tip>
+  **Using an AI coding agent?** Install the [MCP server](/integration/mcp) to let your agent write the integration for you — no manual setup needed.
+</Tip>
+
+## How it works
 
 <Steps>
   <Step title="Get an API key">
-    Sign in to the [Velobase Dashboard](https://velobase.io/dashboard), create a project, and generate an API key under **Project Settings → API Keys**.
+    Sign in at [velobase.io/dashboard](https://velobase.io/dashboard) and generate an API key under **Project Settings → API Keys**.
   </Step>
-  <Step title="Deposit credits for a user">
+  <Step title="Deposit credits">
     Call `POST /v1/billing/deposit` with a `customer_id` and an `amount`. Velobase creates the customer automatically if they don't exist yet.
   </Step>
-  <Step title="Charge credits for AI work">
+  <Step title="Charge for AI work">
     Use **direct deduction** for fixed-price tasks, or the **freeze → consume** flow for LLM calls where cost is only known after generation.
   </Step>
   <Step title="Track every transaction">
-    Every operation is recorded in an immutable ledger. Query customer balances and audit charges in real time from the dashboard or API.
+    Every operation is recorded in an immutable ledger. Query balances and audit charges in real time.
   </Step>
 </Steps>
 
-## Choose a billing flow
+<Card title="Get started in 5 minutes" icon="rocket" href="/quickstart" horizontal>
+  Make your first API call — deposit credits and charge a customer end to end.
+</Card>
 
-<CardGroup cols={2}>
+## Key features
+
+<Columns cols={2}>
+  <Card title="Credit Deposits" icon="coins" href="/integration/depositing-credits">
+    Wallet categories, validity windows, and auto-provisioning for customer balances.
+  </Card>
   <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
-    Charge immediately when cost is known upfront — image generation, fixed-price API calls.
+    Charge immediately when the cost is known upfront — image generation, fixed-price APIs.
   </Card>
-  <Card title="Staged Deduction" icon="arrows-split-up-and-left" href="/integration/staged-deduction">
-    Freeze a maximum budget, then consume the actual cost — LLM inference, async tasks.
+  <Card title="Staged Deduction" icon="layer-group" href="/integration/staged-deduction">
+    Freeze a budget, then settle the actual cost — LLM inference, async tasks.
   </Card>
-  <Card title="Depositing Credits" icon="coins" href="/integration/depositing-credits">
-    Top up customer balances, set expiry dates, and manage wallet categories.
+  <Card title="Immutable Ledger" icon="scroll" href="/dashboard/customers-ledger">
+    Every balance change is recorded permanently with full audit trail.
+  </Card>
+</Columns>
+
+## Billing flows
+
+<Columns cols={3}>
+  <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
+    Fixed cost known upfront
+  </Card>
+  <Card title="Freeze → Consume" icon="layer-group" href="/integration/staged-deduction">
+    Variable cost settled after
+  </Card>
+  <Card title="Deposits" icon="wallet" href="/integration/depositing-credits">
+    Top up customer wallets
+  </Card>
+</Columns>
+
+## Why Velobase?
+
+<AccordionGroup>
+  <Accordion title="Why not just use Stripe metered billing?">
+    Stripe is built for subscription and invoice workflows. AI workloads need sub-second credit operations with atomic freeze-and-settle semantics. Velobase handles thousands of concurrent operations per second with zero race conditions and no negative balances.
+  </Accordion>
+  <Accordion title="How does freeze-consume prevent negative balances?">
+    When you freeze credits, Velobase atomically reserves them from the available balance. No other request can spend those credits while they're frozen. After the task completes, settle the actual cost and any unused credits are returned automatically.
+  </Accordion>
+  <Accordion title="What happens if my API call fails mid-request?">
+    Every billing operation is idempotent. Retry with the same `transaction_id` and Velobase returns the original result without double-charging.
+  </Accordion>
+  <Accordion title="Can I use Velobase for non-AI billing?">
+    Yes. The direct deduction flow works for any fixed-price operation — game currencies, API rate credits, marketplace points, or anything you model as credits.
+  </Accordion>
+</AccordionGroup>
+
+## Explore
+
+<Columns cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    First API call in under 5 minutes
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
+    Complete endpoint reference
   </Card>
   <Card title="MCP Server" icon="robot" href="/integration/mcp">
-    Let your AI coding assistant write the integration code for you.
+    AI coding agent integration
   </Card>
-</CardGroup>
+  <Card title="Dashboard" icon="chart-bar" href="/dashboard/projects">
+    Manage customers, keys, and ledger
+  </Card>
+  <Card title="Idempotency" icon="shield-check" href="/advanced/idempotency">
+    Prevent double charges
+  </Card>
+  <Card title="Error Handling" icon="circle-exclamation" href="/advanced/errors">
+    Error codes reference
+  </Card>
+</Columns>
+
+## Links
+
+<Columns cols={3}>
+  <Card title="Website" icon="globe" href="https://velobase.io">
+    velobase.io
+  </Card>
+  <Card title="Dashboard" icon="gauge" href="https://velobase.io/dashboard">
+    Console
+  </Card>
+  <Card title="GitHub" icon="github" href="https://github.com/velobaseai">
+    Source & issues
+  </Card>
+</Columns>
