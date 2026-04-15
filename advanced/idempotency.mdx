@@ -10,7 +10,6 @@ Network issues can cause an API request to drop the response, even if Velobase s
 
 When Velobase receives a request, it checks if the provided identifier has already been processed for that specific customer:
 
-<Steps>
 1. **First request**: The operation is processed, the balance is updated, and the result is returned with `"is_idempotent_replay": false`.
 2. **Duplicate request**: Velobase recognizes the identifier, skips the operation, and immediately returns the exact same result as the original request, but marked with `"is_idempotent_replay": true`.
 
