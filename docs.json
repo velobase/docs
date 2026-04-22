@@ -2,11 +2,16 @@
   "$schema": "https://mintlify.com/docs.json",
   "name": "Velobase",
   "theme": "mint",
-  "favicon": "https://media.brand.dev/c702550f-bbda-4975-9417-7d54238d0713.png",
+  "favicon": "/favicon.svg",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "https://velobase.io"
+  },
   "colors": {
-    "primary": "#2D2D2D",
-    "light": "#6366f1",
-    "dark": "#2D2D2D"
+    "primary": "#059669",
+    "light": "#10b981",
+    "dark": "#059669"
   },
   "navbar": {
     "links": [
