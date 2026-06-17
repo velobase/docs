@@ -9,7 +9,7 @@ deposits, balances, ledgers, and the freeze / consume / deduct primitives.
 
 <Note>
 The SDK is for the **billing control-plane**. To make model calls, point the
-**OpenAI SDK** at the gateway — see
+**OpenAI SDK** at the gateway, see
 [OpenAI-Compatible Gateway](/integration/openai-compatible).
 </Note>
 
@@ -25,7 +25,7 @@ pip install "velobase-billing>=0.2.1"
 from velobase_billing import Velobase
 
 vb = Velobase(api_key="vb_live_your_project_key")
-# base_url defaults to https://api.velobase.io — override for self-hosted / dev:
+# base_url defaults to https://api.velobase.io, override for self-hosted / dev:
 # vb = Velobase(api_key="...", base_url="https://api.velobase.io")
 ```
 

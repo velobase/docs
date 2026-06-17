@@ -6,12 +6,12 @@ icon: "house"
 
 ## What is Velobase?
 
-**Velobase is an open-source, high-performance billing ledger designed for AI applications.**
+**Velobase is an AI gateway that meters and bills every model call to your end-customers.**
 
-When you build AI apps, billing is hard because you don't know the exact cost upfront (e.g., streaming LLM output). Velobase solves this by acting as a high-speed "credit bank" for your application.
+Point your OpenAI- or Anthropic-style SDK at Velobase, add one header for who to bill, and every model call is metered against that customer's wallet (cost returned on the response). It is the per-customer balance, ledger, and rate-limit layer OpenRouter leaves you to build. It is also a high-performance billing ledger, so you can meter work you price yourself against the same wallets.
 
 <Tip>
-  **Using an AI coding agent?** Install the [MCP server](/integration/mcp) to let your agent write the integration for you — no manual setup needed.
+  **Using an AI coding agent?** Install the [MCP server](/integration/mcp) to let your agent write the integration for you, no manual setup needed.
 </Tip>
 
 ## How it works
@@ -20,19 +20,19 @@ When you build AI apps, billing is hard because you don't know the exact cost up
   <Step title="Get an API key">
     Sign in at [velobase.io/dashboard](https://velobase.io/dashboard) and generate an API key under **Project Settings → API Keys**.
   </Step>
-  <Step title="Deposit credits">
-    Call `POST /v1/billing/deposit` with a `customer_id` and an `amount`. Velobase creates the customer automatically if they don't exist yet.
+  <Step title="Fund a customer">
+    Call `POST /v1/customers/deposit` with a `customer_id` and an amount. Velobase creates the customer automatically if they don't exist yet.
   </Step>
-  <Step title="Charge for AI work">
-    Use **direct deduction** for fixed-price tasks, or the **freeze → consume** flow for LLM calls where cost is only known after generation.
+  <Step title="Make a billed model call">
+    Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and send the `X-Velobase-Customer` header. The call is billed to that customer and the cost comes back on the response headers. For work you price yourself, use direct deduction or the freeze then consume flow.
   </Step>
   <Step title="Track every transaction">
-    Every operation is recorded in an immutable ledger. Query balances and audit charges in real time.
+    Every operation is recorded in an immutable ledger. Query balances and reconcile usage in real time.
   </Step>
 </Steps>
 
 <Card title="Get started in 5 minutes" icon="rocket" href="/quickstart" horizontal>
-  Make your first API call — deposit credits and charge a customer end to end.
+  Make your first API call, deposit credits and charge a customer end to end.
 </Card>
 
 ## Key features
@@ -42,10 +42,10 @@ When you build AI apps, billing is hard because you don't know the exact cost up
     Wallet categories, validity windows, and auto-provisioning for customer balances.
   </Card>
   <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
-    Charge immediately when the cost is known upfront — image generation, fixed-price APIs.
+    Charge immediately when the cost is known upfront, image generation, fixed-price APIs.
   </Card>
   <Card title="Staged Deduction" icon="layer-group" href="/integration/staged-deduction">
-    Freeze a budget, then settle the actual cost — LLM inference, async tasks.
+    Freeze a budget, then settle the actual cost, LLM inference, async tasks.
   </Card>
   <Card title="Immutable Ledger" icon="scroll" href="/dashboard/customers-ledger">
     Every balance change is recorded permanently with full audit trail.
@@ -79,7 +79,7 @@ When you build AI apps, billing is hard because you don't know the exact cost up
     Every billing operation is idempotent. Retry with the same `transaction_id` and Velobase returns the original result without double-charging.
   </Accordion>
   <Accordion title="Can I use Velobase for non-AI billing?">
-    Yes. The direct deduction flow works for any fixed-price operation — game currencies, API rate credits, marketplace points, or anything you model as credits.
+    Yes. The direct deduction flow works for any fixed-price operation, game currencies, API rate credits, marketplace points, or anything you model as credits.
   </Accordion>
 </AccordionGroup>
 

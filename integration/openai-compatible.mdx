@@ -4,16 +4,36 @@ sidebarTitle: "Models (OpenAI-compatible)"
 description: "Point your OpenAI or Anthropic SDK at Velobase and bill every model call to an end-customer wallet."
 ---
 
-Velobase is an OpenAI-compatible AI gateway. You keep your existing OpenAI or
-Anthropic SDK and change two things: the **base URL** and one **header** that
-says which end-customer to bill. Every call is metered against that customer's
-wallet, and the per-call cost comes back on the response headers.
+Velobase is a model-agnostic, OpenAI-compatible AI gateway. Point your OpenAI
+SDK at it and call any available model (Claude, DeepSeek, and more) by its id,
+changing two things: the **base URL** and one **header** that says which
+end-customer to bill. Every call is metered against that customer's wallet, and
+the per-call cost comes back on the response headers.
 
 <Note>
-**Base URL:** `https://api.velobase.io/v1` — the OpenAI SDK expects the `/v1`
+**Base URL:** `https://api.velobase.io/v1`, the OpenAI SDK expects the `/v1`
 suffix. **Auth:** `Authorization: Bearer <project-key>` (a `vb_live_…` key).
 **Who to bill:** the `X-Velobase-Customer: <your-user-id>` header.
 </Note>
+
+## Available models
+
+Call any of these by its `model` id through the OpenAI-compatible endpoint.
+Prices are what your customer's wallet is charged, per million tokens.
+
+| `model` | Streaming | Input ($/1M) | Output ($/1M) |
+| --- | --- | --- | --- |
+| `deepseek/deepseek-v4-pro` | Yes | $0.49 | $0.96 |
+| `anthropic/claude-haiku-4.5` | No | $1.10 | $5.50 |
+| `anthropic/claude-sonnet-4.6` | No | $3.30 | $16.50 |
+| `anthropic/claude-opus-4.5` | No | $5.50 | $27.50 |
+| `anthropic/claude-opus-4.6` | No | $5.50 | $27.50 |
+| `anthropic/claude-opus-4.7` | No | $5.50 | $27.50 |
+| `anthropic/claude-opus-4.8` | No | $5.50 | $27.50 |
+
+Call `GET /v1/models` for the live list your project can route. More models open
+up as upstreams are connected. Claude models route through Bedrock and are
+non-streaming for now, so pick a DeepSeek model when you need streaming.
 
 ## Copy for AI
 
@@ -45,7 +65,7 @@ print(r.parse().choices[0].message.content)
 
 Fund a customer first (else 402): POST /v1/customers/{id}/deposit {"amount_usd": 5}
 Reconcile: GET /v1/usage (rows carry cost_cents, tokens, transaction_id)
-Notes: Claude routes via Bedrock which does not support streaming yet — use
+Notes: Claude routes via Bedrock which does not support streaming yet, use
 stream=false for Claude (DeepSeek models support streaming). Official models
 debit both the customer wallet and your project wallet; a call 402s if either
 is empty. Control-plane SDKs: pip install velobase-billing / npm i @velobaseai/billing.
@@ -145,12 +165,30 @@ streaming yet. A streaming request for a Claude model returns
 A model call needs a funded customer wallet, otherwise it returns
 `402 insufficient_funds`. Top one up before (or right after) you create the user:
 
-```bash
+<CodeGroup>
+
+```python Python
+from velobase_billing import Velobase
+
+vb = Velobase(api_key="vb_live_your_project_key")
+vb.customers.deposit(customer_id="user_123", amount_usd=5)
+```
+
+```typescript Node
+import { Velobase } from "@velobaseai/billing";
+
+const vb = new Velobase({ apiKey: "vb_live_your_project_key" });
+await vb.customers.deposit({ customerId: "user_123", amountUsd: 5 });
+```
+
+```bash curl
 curl https://api.velobase.io/v1/customers/user_123/deposit \
   -H "Authorization: Bearer vb_live_your_project_key" \
   -H "Content-Type: application/json" \
   -d '{"amount_usd": 5}'
 ```
+
+</CodeGroup>
 
 See [Depositing Credits](/integration/depositing-credits) for the amount units
 and idempotency rules.
@@ -159,8 +197,8 @@ and idempotency rules.
 
 Official (Velobase-routed) models debit two ledgers on each call:
 
-1. The **customer wallet** — your own pricing units, what you charge your end-user.
-2. The **project wallet** — real money you prepaid Velobase via Stripe.
+1. The **customer wallet**, your own pricing units, what you charge your end-user.
+2. The **project wallet**, real money you prepaid Velobase via Stripe.
 
 A call succeeds only when **both** have funds. If the project wallet runs out,
 calls return `402 project_balance_insufficient` regardless of the customer's

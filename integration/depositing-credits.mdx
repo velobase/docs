@@ -20,6 +20,33 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
 
 If the user does not exist, it will be created automatically.
 
+## Using the SDK
+
+<CodeGroup>
+
+```python Python
+from velobase_billing import Velobase
+
+vb = Velobase(api_key="your_api_key_here")
+vb.customers.deposit(customer_id="user_987", amount_usd=5)
+# explicit units: amount_usd / amount_cents / amount_credits
+# (1 USD = 100 cents = 1,000,000 credits)
+```
+
+```typescript Node
+import { Velobase } from "@velobaseai/billing";
+
+const vb = new Velobase({ apiKey: "your_api_key_here" });
+await vb.customers.deposit({ customerId: "user_987", amountUsd: 5 });
+// explicit units: amountUsd / amountCents / amountCredits
+```
+
+</CodeGroup>
+
+Both deposits are idempotent on an idempotency key, and create the customer on
+first use. See the [Python](/integration/sdk-python) and
+[JavaScript](/integration/sdk-javascript) SDK references for the full surface.
+
 ## Add a Wallet Category
 
 Use `credit_type` when you want this deposit to show up under a specific wallet category in the console and balance breakdown.

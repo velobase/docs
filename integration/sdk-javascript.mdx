@@ -10,7 +10,7 @@ It ships ESM and CommonJS builds with full TypeScript types.
 
 <Note>
 The SDK is for the **billing control-plane**. To make model calls, point the
-**OpenAI SDK** at the gateway — see
+**OpenAI SDK** at the gateway, see
 [OpenAI-Compatible Gateway](/integration/openai-compatible).
 </Note>
 
@@ -26,7 +26,7 @@ npm install @velobaseai/billing@^1.1.1
 import { Velobase } from "@velobaseai/billing";
 
 const vb = new Velobase({ apiKey: "vb_live_your_project_key" });
-// baseUrl defaults to https://api.velobase.io — override for self-hosted / dev:
+// baseUrl defaults to https://api.velobase.io, override for self-hosted / dev:
 // const vb = new Velobase({ apiKey: "...", baseUrl: "https://api.velobase.io" });
 ```
 
