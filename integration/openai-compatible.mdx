@@ -12,8 +12,10 @@ the per-call cost comes back on the response headers.
 
 <Note>
 **Base URL:** `https://api.velobase.io/v1`, the OpenAI SDK expects the `/v1`
-suffix. **Auth:** `Authorization: Bearer <project-key>` (a `vb_live_…` key).
-**Who to bill:** the `X-Velobase-Customer: <your-user-id>` header.
+suffix. **Auth:** `Authorization: Bearer <project-key>` (a `vb_live_…` key). A
+project key bills the customer named in the header. You can also issue a
+customer-scoped `vb_customer_…` key that carries its own customer, so no header
+is needed. **Who to bill:** the `X-Velobase-Customer: <your-user-id>` header.
 </Note>
 
 ## Available models
@@ -68,7 +70,7 @@ Reconcile: GET /v1/usage (rows carry cost_cents, tokens, transaction_id)
 Notes: Claude routes via Bedrock which does not support streaming yet, use
 stream=false for Claude (DeepSeek models support streaming). Official models
 debit both the customer wallet and your project wallet; a call 402s if either
-is empty. Control-plane SDKs: pip install velobase-billing / npm i @velobaseai/billing.
+is empty. Control-plane SDKs: pip install "velobase-billing>=0.2.1" / npm i @velobaseai/billing@^1.1.1.
 ````
 
 ## Make a call
@@ -140,8 +142,8 @@ can show cost and balance without a second request:
 | Header | Meaning |
 | --- | --- |
 | `x-velobase-cost-cents` | Cost of this call, in cents |
-| `x-velobase-cost-credits` | Same cost, in credits (1 cent = 10,000 credits) |
-| `x-velobase-balance-credits` | The customer's remaining balance after this call |
+| `x-velobase-cost-credits` | Same cost, in credits (1 USD = 100 cents = 1,000,000 credits) |
+| `x-velobase-balance-credits` | The customer wallet's remaining balance after this call, in credits |
 | `x-velobase-transaction-id` | Ties this call to a usage row and ledger entry |
 
 These headers are CORS-exposed, so a browser frontend can read them too.
@@ -201,8 +203,8 @@ Official (Velobase-routed) models debit two ledgers on each call:
 2. The **project wallet**, real money you prepaid Velobase via Stripe.
 
 A call succeeds only when **both** have funds. If the project wallet runs out,
-calls return `402 project_balance_insufficient` regardless of the customer's
-balance. Customer deposits are virtual record-keeping and never move real money.
+calls return `402 project_balance_insufficient` regardless of the customer
+wallet. Customer deposits are virtual record-keeping and never move real money.
 
 ## Reconcile usage
 

@@ -1,22 +1,33 @@
 ---
 title: "Quickstart"
 sidebarTitle: "Quickstart"
-description: "Make your first billing API call in under 5 minutes."
+description: "Route your first model call through Velobase and bill it to a customer wallet in under 5 minutes."
 ---
+
+Velobase is an AI gateway first: point your existing OpenAI or Anthropic SDK at it, and every model call is billed to one of your end-customers' wallets. It is also a billing ledger (freeze, consume, deduct) for work you price yourself.
+
+This quickstart covers the gateway path first, then the billing ledger primitives.
 
 <Steps>
 
-<Step title="Get your API Key">
+<Step title="Get your API key">
 
 1. Sign in to the [Velobase Dashboard](https://velobase.io/dashboard).
-2. Create a new organization and project if you haven't already.
-3. Go to **Project Settings → API Keys** and generate a new key.
+2. Create a project if you haven't already.
+3. Go to **Keys** and generate a new key.
+
+You can create two kinds of keys:
+
+- `vb_live_` is a project key. Use it server-side and tell Velobase who to bill with the `X-Velobase-Customer: <user-id>` header.
+- `vb_customer_` is a customer-scoped key. It carries its own customer binding, so no header is needed.
 
 </Step>
 
-<Step title="Add Credits to a User">
+<Step title="Fund a customer wallet">
 
-Start by giving a user some credits. If the user does not exist yet, Velobase creates them automatically.
+Add funds to a customer's wallet. If the customer does not exist yet, Velobase creates them automatically.
+
+Amounts use explicit unit fields: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. Prefer `amount_usd`.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -24,23 +35,69 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_123",
-    "amount": 100
+    "amount_usd": 1.00
   }'
 ```
 
+</Step>
+
+<Step title="Make a model call">
+
+Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and pass `X-Velobase-Customer` to say which wallet to bill. Velobase is model-agnostic: live models include `deepseek/deepseek-v4-pro` (supports streaming) and the `anthropic/claude-*` family such as `anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`, and `anthropic/claude-haiku-4.5` (served on Bedrock, non-streaming). More are available via upstreams.
+
+<CodeGroup>
+
+```bash cURL
+curl -X POST https://api.velobase.io/v1/chat/completions \
+  -H "Authorization: Bearer your_api_key_here" \
+  -H "X-Velobase-Customer: user_123" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek/deepseek-v4-pro",
+    "messages": [{ "role": "user", "content": "Hello!" }]
+  }'
+```
+
+```python Python (OpenAI SDK)
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.velobase.io/v1",
+    api_key="your_api_key_here",
+)
+
+resp = client.chat.completions.create(
+    model="deepseek/deepseek-v4-pro",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_headers={"X-Velobase-Customer": "user_123"},
+)
+print(resp.choices[0].message.content)
+```
+
+</CodeGroup>
+
+Velobase forwards the request upstream, settles the real token cost against the customer's wallet, and returns per-call billing details in the response headers:
+
+- `x-velobase-cost-cents` and `x-velobase-cost-credits`: what this call cost.
+- `x-velobase-balance-credits`: the wallet balance after the call.
+- `x-velobase-transaction-id`: the ledger transaction for this call.
+
+<Note>
+You can list available models with `GET /v1/models` and review aggregated spend with `GET /v1/usage`.
+</Note>
 
 </Step>
 
-<Step title="Choose a Billing Flow">
+<Step title="Bill work you price yourself (optional)">
 
-Once the user has credits, you can charge them in two ways:
+For work that is not a model call (for example image generation or a fixed-price feature), use the billing ledger primitives directly. Charge a customer in two ways:
 
-- Use **direct deduction** when the cost is known upfront
-- Use **staged deduction** when the final cost is only known after execution
+- Use **direct deduction** when the cost is known upfront.
+- Use **staged deduction** when the final cost is only known after execution.
 
 <Tabs>
 
-<Tab title="Option A: Direct Deduction">
+<Tab title="Option A: Direct deduction">
 
 Use this for fixed-price operations such as image generation or a known API call cost.
 
@@ -51,15 +108,15 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   -d '{
     "customer_id": "user_123",
     "transaction_id": "img_gen_001",
-    "amount": 20
+    "amount_usd": 0.20
   }'
 ```
 
-This deducts `20` credits immediately.
+This deducts $0.20 immediately.
 
 </Tab>
 
-<Tab title="Option B: Staged Deduction">
+<Tab title="Option B: Staged deduction">
 
 Use this when you only know the maximum budget before the task starts.
 
@@ -72,11 +129,11 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   -d '{
     "customer_id": "user_123",
     "transaction_id": "llm_task_001",
-    "amount": 20
+    "amount_usd": 0.20
   }'
 ```
 
-This reserves `20` credits before the task starts.
+This reserves $0.20 before the task starts.
 
 **Consume the actual cost**
 
@@ -86,11 +143,11 @@ curl -X POST https://api.velobase.io/v1/billing/consume \
   -H "Content-Type: application/json" \
   -d '{
     "transaction_id": "llm_task_001",
-    "actual_amount": 12
+    "actual_amount_usd": 0.12
   }'
 ```
 
-Velobase consumes `12` credits and automatically returns the remaining `8`.
+Velobase consumes $0.12 and automatically returns the remaining $0.08.
 
 If the task is cancelled, call `unfreeze` instead of `consume`.
 
@@ -100,7 +157,7 @@ If the task is cancelled, call `unfreeze` instead of `consume`.
 
 </Step>
 
-<Step title="Check the Balance">
+<Step title="Check the wallet">
 
 ```bash
 curl https://api.velobase.io/v1/customers/user_123 \
@@ -112,33 +169,67 @@ Response:
 ```json
 {
   "id": "user_123",
-  "balance": {
-    "total": 100,
-    "used": 12,
-    "frozen": 0,
-    "available": 88
-  }
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "metadata": {},
+  "wallets": {
+    "default": {
+      "total": 1000000,
+      "used": 120000,
+      "frozen": 0,
+      "available": 880000,
+      "sources": [
+        {
+          "source": "deposit",
+          "total": 1000000,
+          "used": 120000,
+          "frozen": 0,
+          "available": 880000,
+          "starts_at": null,
+          "expires_at": null
+        }
+      ]
+    }
+  },
+  "created_at": "2026-06-17T00:00:00Z"
 }
 ```
 
+Wallet amounts are reported in credits (1,000,000 credits = 1 USD).
 
 </Step>
 
 </Steps>
 
-## Next Steps
+## SDKs
+
+Prefer a typed client? Install the Velobase billing SDK and pin the version:
+
+<CodeGroup>
+
+```bash Python
+pip install "velobase-billing>=0.2.1"
+```
+
+```bash JavaScript
+npm i @velobaseai/billing@^1.1.1
+```
+
+</CodeGroup>
+
+## Next steps
 
 <Columns cols={2}>
-  <Card title="Depositing Credits" icon="coins" href="/integration/depositing-credits">
+  <Card title="Funding wallets" icon="coins" href="/integration/depositing-credits">
     Wallet categories, validity periods, and balance breakdown.
   </Card>
-  <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
+  <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">
     Charge immediately when cost is known.
   </Card>
-  <Card title="Staged Deduction" icon="layer-group" href="/integration/staged-deduction">
+  <Card title="Staged deduction" icon="layer-group" href="/integration/staged-deduction">
     Freeze first, then settle the actual cost.
   </Card>
-  <Card title="API Reference" icon="code" href="/api-reference/endpoints">
+  <Card title="API reference" icon="code" href="/api-reference/endpoints">
     Complete endpoint reference.
   </Card>
 </Columns>

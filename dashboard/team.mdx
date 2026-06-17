@@ -6,6 +6,8 @@ description: "Collaborate with your team by assigning distinct roles and permiss
 
 Velobase manages collaboration at the **Organization** level. When you invite someone to your organization, they immediately gain access to all projects within that organization, governed by their assigned role.
 
+Velobase is an AI gateway: developers point their OpenAI or Anthropic SDK at it and bill every model call to an end-customer's wallet. It is also a billing ledger (freeze, consume, deduct) for work you price yourself. The roles below govern who on your team can manage gateway keys, customer wallets, and usage. See the [Quickstart](/quickstart) for how the gateway works.
+
 ## Organization Roles
 
 Velobase provides a three-tier role system.
@@ -16,10 +18,10 @@ Every member belongs to one of three roles:
 
 | Capability | OWNER | ADMIN | DEVELOPER |
 | --- | --- | --- | --- |
-| View projects, API keys, and ledger | ✓ | ✓ | ✓ |
+| View projects, API keys, usage, and ledger | ✓ | ✓ | ✓ |
 | Create and revoke API keys | ✓ | ✓ | ✓ |
 | Create and rename projects | ✓ | ✓ | |
-| View and manage customer balances | ✓ | ✓ | |
+| View and manage customer wallets | ✓ | ✓ | |
 | Invite new members | ✓ | ✓ | |
 | Change member roles | ✓ | | |
 | Remove members | ✓ | ✓\* | |
@@ -30,16 +32,16 @@ Every member belongs to one of three roles:
 ### Role Definitions
 
 - **OWNER**: Has full, unrestricted control over the organization and its billing settings.
-- **ADMIN**: Can manually adjust balances, review ledgers, and manage the team. Cannot delete the organization or change other members' roles to Owner.
-- **DEVELOPER**: Can create API keys and view the ledger to debug transactions. Cannot alter a customer's balance manually or invite members.
+- **ADMIN**: Can manually adjust customer wallets, review ledgers, and manage the team. Cannot delete the organization or change other members' roles to Owner.
+- **DEVELOPER**: Can create API keys and view the ledger and usage to debug transactions. Cannot alter a customer's wallet manually or invite members.
 
 ## Inviting Members
 
 Only **Owners** and **Admins** can invite new members.
 
-1. Navigate to the **Team** page in your organization dashboard.
+1. Open **Settings** in your project dashboard, then go to the **Team** section.
 2. Click **Invite Member**.
 3. Enter the invitee's email address and select their role.
 4. The invitee will appear under "Pending Invitations". Invitations expire in 7 days.
 
-You can cancel a pending invitation at any time from the Team page.
+You can cancel a pending invitation at any time from the Team section.

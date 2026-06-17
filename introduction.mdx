@@ -6,19 +6,19 @@ description: "What is Velobase?"
 
 **Velobase is an AI gateway that meters and bills every model call to your end-customers.**
 
-Point your OpenAI- or Anthropic-style SDK at Velobase and add one header that says which customer to bill. Each call is metered against that customer's wallet, with the per-call cost returned on the response. It is the per-customer balance, ledger, and rate-limit layer that OpenRouter leaves you to build yourself. Under the hood it is a high-performance billing ledger, so you can also meter work you price yourself (image generation, agent runs) against the same wallets.
+Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, then add one header (`X-Velobase-Customer: <user-id>`) that says which customer to bill. Each call is metered against that customer's wallet, with the per-call cost returned on the response. It is the per-customer wallet, ledger, and rate-limit layer that OpenRouter leaves you to build yourself. The same wallets also work as a billing ledger (freeze, consume, deduct), so you can meter work you price yourself such as image generation or agent runs.
 
 ## Core Capabilities
 
 <AccordionGroup>
   <Accordion title="OpenAI- and Anthropic-compatible gateway" icon="robot">
-    Keep your existing SDK. Change the base URL, add the `X-Velobase-Customer` header, and every model call is billed to that customer. Model-agnostic: route DeepSeek, Claude, and more through one endpoint.
+    Keep your existing SDK. Change the base URL to `https://api.velobase.io/v1`, add the `X-Velobase-Customer` header, and every model call is billed to that customer. Model-agnostic: route `deepseek/deepseek-v4-pro`, `anthropic/claude-opus-4.8`, and more through one endpoint.
   </Accordion>
   <Accordion title="Per-customer wallets and ledger" icon="wallet">
-    Every end-customer has a balance and an immutable ledger. Deposit credits, and calls are gated and metered per customer, with the cost on each response header.
+    Every end-customer has a wallet and an immutable ledger. Fund the wallet, and calls are gated and metered per customer, with the cost returned on each response header (`x-velobase-cost-cents`, `x-velobase-balance-credits`).
   </Accordion>
   <Accordion title="Freeze-Consume for self-priced work" icon="layer-group">
-    Freeze an estimated amount before an AI task, then consume the exact amount after. Zero risk of negative balances.
+    Freeze an estimated amount before an AI task, then consume the exact amount after. Amounts are explicit (`amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits). Zero risk of negative balances.
   </Accordion>
   <Accordion title="High concurrency, API first" icon="bolt">
     Thousands of deductions per second without race conditions. Manage everything over REST or the Python and JavaScript SDKs.
@@ -36,8 +36,8 @@ Don't read about it, build with it. Point your OpenAI SDK at the gateway, or mak
   <Card title="Quickstart" icon="rocket" href="/quickstart">
     Make your first API call in under 5 minutes.
   </Card>
-  <Card title="Depositing credits" icon="coins" href="/integration/depositing-credits">
-    Wallet categories, validity periods, and balance management.
+  <Card title="Funding a wallet" icon="coins" href="/integration/depositing-credits">
+    Fund a customer wallet with `POST /v1/customers/deposit`, set validity periods, and manage balances.
   </Card>
   <Card title="Tutorial: meter your app" icon="layer-group" href="/integration/tutorial">
     End to end: key, fund a customer, billed call, reconcile.
