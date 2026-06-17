@@ -1,0 +1,102 @@
+---
+title: "JavaScript SDK"
+sidebarTitle: "JavaScript SDK"
+description: "The @velobaseai/billing package for deposits, balances, and billing primitives."
+---
+
+The `@velobaseai/billing` package wraps the Velobase control-plane: customer
+deposits, balances, ledgers, and the freeze / consume / deduct primitives.
+It ships ESM and CommonJS builds with full TypeScript types.
+
+<Note>
+The SDK is for the **billing control-plane**. To make model calls, point the
+**OpenAI SDK** at the gateway — see
+[OpenAI-Compatible Gateway](/integration/openai-compatible).
+</Note>
+
+## Install
+
+```bash
+npm install @velobaseai/billing@^1.1.1
+```
+
+## Initialize
+
+```typescript
+import { Velobase } from "@velobaseai/billing";
+
+const vb = new Velobase({ apiKey: "vb_live_your_project_key" });
+// baseUrl defaults to https://api.velobase.io — override for self-hosted / dev:
+// const vb = new Velobase({ apiKey: "...", baseUrl: "https://api.velobase.io" });
+```
+
+## Deposit credits to a customer
+
+State the amount with an explicit unit. `amountUsd` is the least error-prone.
+
+```typescript
+await vb.customers.deposit({ customerId: "user_123", amountUsd: 5 });
+// or: amountCents: 500  /  amountCredits: 5_000_000
+// 1 USD = 100 cents = 1,000,000 credits
+```
+
+Pass `idempotencyKey` so a retry never double-credits (use your payment event
+id in production):
+
+```typescript
+await vb.customers.deposit({
+  customerId: "user_123",
+  amountUsd: 5,
+  idempotencyKey: "stripe_evt_1a2b3c",
+});
+```
+
+<Note>
+`amount` (cents) is still accepted for backward compatibility, but prefer the
+explicit `amountUsd` / `amountCents` / `amountCredits` so the unit is clear.
+</Note>
+
+## Read a balance
+
+`get()` returns the customer with their wallets, each broken down by source:
+
+```typescript
+const cust = await vb.customers.get("user_123");
+const wallet = cust.wallets["default"];
+console.log(wallet.available, "available");
+wallet.sources.forEach((s) => console.log(s.source, s.available));
+```
+
+## Read the ledger
+
+```typescript
+const page = await vb.customers.ledger("user_123", { limit: 20 });
+for (const entry of page.items) {
+  console.log(entry.operationType, entry.amount, entry.transactionId);
+}
+if (page.hasMore) {
+  const next = await vb.customers.ledger("user_123", { cursor: page.nextCursor });
+}
+```
+
+## Billing primitives
+
+For metering work you price yourself (not model calls, which bill
+automatically), use freeze → consume for unknown-cost work, or deduct for
+fixed-cost work.
+
+```typescript
+// Known cost up front:
+await vb.billing.deduct({ customerId: "user_123", transactionId: "img_001", amount: 20 });
+
+// Unknown cost: reserve a budget, then settle the actual amount.
+await vb.billing.freeze({ customerId: "user_123", transactionId: "job_001", amount: 50 });
+await vb.billing.consume({ transactionId: "job_001", actualAmount: 32 }); // releases the rest
+// await vb.billing.unfreeze({ transactionId: "job_001" }); // cancel, release everything
+```
+
+## Errors
+
+All failures throw a `VelobaseError` (check with `isVelobaseError(err)`),
+carrying the HTTP status, error `type`, and server `request_id`. See
+[Errors](/advanced/errors).
