@@ -1,0 +1,119 @@
+---
+title: "Tutorial: Meter Your App"
+sidebarTitle: "Tutorial: Meter your app"
+description: "End to end — from project key to a billed model call you can reconcile."
+---
+
+This walks the full loop: get a key, fund an end-customer, make a model call
+that bills that customer, and reconcile the spend. About 10 minutes.
+
+<Steps>
+
+<Step title="Get a project key">
+Sign in to the [Velobase Dashboard](https://velobase.io/dashboard), open your
+project, and create an API key under **Keys**. It looks like `vb_live_…`. This
+is your backend key; never ship it to a browser or mobile client.
+</Step>
+
+<Step title="Fund an end-customer">
+A model call needs a funded customer wallet. Create/fund one with your app's
+own user id:
+
+```bash
+curl https://api.velobase.io/v1/customers/user_123/deposit \
+  -H "Authorization: Bearer vb_live_your_project_key" \
+  -H "Content-Type: application/json" \
+  -d '{"amount_usd": 5}'
+```
+
+The customer is created on first deposit. In production you call this from your
+backend after the user pays you, using the payment event id as the
+`idempotency_key`.
+</Step>
+
+<Step title="Make a billed model call">
+Point the OpenAI SDK at Velobase and tag the call with the customer to bill:
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    api_key="vb_live_your_project_key",
+    base_url="https://api.velobase.io/v1",
+    default_headers={"X-Velobase-Customer": "user_123"},
+)
+resp = client.chat.completions.with_raw_response.create(
+    model="anthropic/claude-opus-4.8",
+    messages=[{"role": "user", "content": "Write a one-line haiku about billing."}],
+    max_tokens=64,
+)
+print(resp.parse().choices[0].message.content)
+print("charged (cents):", resp.headers.get("x-velobase-cost-cents"))
+print("txn:", resp.headers.get("x-velobase-transaction-id"))
+```
+
+```typescript Node
+import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: "vb_live_your_project_key",
+  baseURL: "https://api.velobase.io/v1",
+  defaultHeaders: { "X-Velobase-Customer": "user_123" },
+});
+const { data, response } = await client.chat.completions
+  .create({
+    model: "anthropic/claude-opus-4.8",
+    messages: [{ role: "user", content: "Write a one-line haiku about billing." }],
+    max_tokens: 64,
+  })
+  .withResponse();
+console.log(data.choices[0].message.content);
+console.log("charged (cents):", response.headers.get("x-velobase-cost-cents"));
+```
+
+</CodeGroup>
+
+The call debits `user_123`'s wallet and returns the cost on the response
+headers. If you see `402 insufficient_funds`, the customer wallet is empty; if
+you see `402 project_balance_insufficient`, top up your project wallet.
+</Step>
+
+<Step title="Check the balance">
+
+```bash
+curl https://api.velobase.io/v1/customers/user_123/balance \
+  -H "Authorization: Bearer vb_live_your_project_key"
+```
+
+The `available` figure dropped by the call's cost. Or read it through a
+[Python](/integration/sdk-python) / [JavaScript](/integration/sdk-javascript)
+SDK.
+</Step>
+
+<Step title="Reconcile usage">
+Every call shows up in usage with its cost, tokens, and transaction id:
+
+```bash
+curl "https://api.velobase.io/v1/usage?customer_id=user_123&limit=10" \
+  -H "Authorization: Bearer vb_live_your_project_key"
+```
+
+Match each row's `transaction_id` to the `x-velobase-transaction-id` you got
+back from the call. That is the full loop: charge per customer, per call, fully
+reconcilable.
+</Step>
+
+</Steps>
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="OpenAI-Compatible Gateway" icon="robot" href="/integration/openai-compatible">
+    Streaming, billing headers, two-wallet model, and the Copy-for-AI prompt.
+  </Card>
+  <Card title="Depositing Credits" icon="wallet" href="/integration/depositing-credits">
+    Amount units, wallet categories, and idempotency.
+  </Card>
+</CardGroup>

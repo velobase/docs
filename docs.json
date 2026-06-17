@@ -56,10 +56,14 @@
           {
             "group": "Integration Guides",
             "pages": [
+              "integration/openai-compatible",
+              "integration/tutorial",
               "integration/mcp",
               "integration/depositing-credits",
               "integration/direct-deduction",
-              "integration/staged-deduction"
+              "integration/staged-deduction",
+              "integration/sdk-python",
+              "integration/sdk-javascript"
             ]
           },
           {

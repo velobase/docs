@@ -1,0 +1,102 @@
+---
+title: "Python SDK"
+sidebarTitle: "Python SDK"
+description: "The velobase-billing package for deposits, balances, and billing primitives."
+---
+
+The `velobase-billing` package wraps the Velobase control-plane: customer
+deposits, balances, ledgers, and the freeze / consume / deduct primitives.
+
+<Note>
+The SDK is for the **billing control-plane**. To make model calls, point the
+**OpenAI SDK** at the gateway — see
+[OpenAI-Compatible Gateway](/integration/openai-compatible).
+</Note>
+
+## Install
+
+```bash
+pip install "velobase-billing>=0.2.1"
+```
+
+## Initialize
+
+```python
+from velobase_billing import Velobase
+
+vb = Velobase(api_key="vb_live_your_project_key")
+# base_url defaults to https://api.velobase.io — override for self-hosted / dev:
+# vb = Velobase(api_key="...", base_url="https://api.velobase.io")
+```
+
+An async client is also available as `AsyncVelobase` with the same methods.
+
+## Deposit credits to a customer
+
+State the amount with an explicit unit. `amount_usd` is the least error-prone.
+
+```python
+vb.customers.deposit(customer_id="user_123", amount_usd=5)
+# or: amount_cents=500  /  amount_credits=5_000_000
+# 1 USD = 100 cents = 1,000,000 credits
+```
+
+Pass `idempotency_key` so a retry never double-credits (use your payment event
+id in production):
+
+```python
+vb.customers.deposit(
+    customer_id="user_123",
+    amount_usd=5,
+    idempotency_key="stripe_evt_1a2b3c",
+)
+```
+
+<Note>
+`amount=` (cents) is still accepted for backward compatibility, but prefer the
+explicit `amount_usd` / `amount_cents` / `amount_credits` so the unit is clear.
+</Note>
+
+## Read a balance
+
+`get()` returns the customer with their wallets, each broken down by source:
+
+```python
+cust = vb.customers.get("user_123")
+default = cust.wallets["default"]
+print(default.available, "available")
+for s in default.sources:
+    print(s.source, s.available)
+```
+
+## Read the ledger
+
+```python
+page = vb.customers.ledger("user_123", limit=20)
+for entry in page.items:
+    print(entry.operation_type, entry.amount, entry.transaction_id)
+if page.has_more:
+    next_page = vb.customers.ledger("user_123", cursor=page.next_cursor)
+```
+
+## Billing primitives
+
+For metering work you price yourself (not model calls, which bill
+automatically), use freeze → consume for unknown-cost work, or deduct for
+fixed-cost work.
+
+```python
+# Known cost up front:
+vb.billing.deduct(customer_id="user_123", transaction_id="img_001", amount=20)
+
+# Unknown cost: reserve a budget, then settle the actual amount.
+vb.billing.freeze(customer_id="user_123", transaction_id="job_001", amount=50)
+vb.billing.consume(transaction_id="job_001", actual_amount=32)  # releases the rest
+# vb.billing.unfreeze(transaction_id="job_001")  # cancel, release everything
+```
+
+## Errors
+
+All failures raise a `VelobaseError` subclass (`AuthenticationError`,
+`NotFoundError`, `ConflictError`, `ValidationError`, `InternalError`), each
+carrying the server `request_id`. See [Errors](/advanced/errors).
