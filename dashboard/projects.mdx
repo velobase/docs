@@ -1,12 +1,14 @@
 ---
 title: "Projects"
 sidebarTitle: "Projects"
-description: "Organize your billing namespaces with projects."
+description: "Organize your gateway traffic and customer wallets with projects."
 ---
 
-A **project** is the top-level isolation unit in Velobase. Each project has its own API keys, customers, and billing accounts. Data never leaks between projects.
+A **project** is the top-level isolation unit in Velobase. Each project has its own API keys, customers, and customer wallets. Data never leaks between projects.
 
-Use separate projects to keep different apps, environments, or clients fully isolated. For example, you might create `my-saas-prod` for production traffic and `my-saas-staging` for testing — both live under the same organization, but their customers and balances are completely independent.
+A project is where your gateway traffic and billing live together. Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` with a project key, and every model call is metered and billed to an end-customer wallet via the `X-Velobase-Customer: <user-id>` header. The same project also holds the billing ledger primitives (freeze, consume, deduct) for work you price yourself.
+
+Use separate projects to keep different apps, environments, or clients fully isolated. For example, you might create `my-saas-prod` for production traffic and `my-saas-staging` for testing. Both live under the same organization, but their customers and wallets are completely independent.
 
 ## Creating a Project
 
@@ -20,24 +22,28 @@ Once you have projects, the organization dashboard shows them as a card grid. Ea
 
 ## Inside a Project
 
-After entering a project, a sidebar appears on the left with four sections:
+After entering a project, a sidebar appears on the left with these sections:
 
 | Section | What it does |
 | --- | --- |
-| **Customers** | Browse all customers, view individual balances, and inspect wallet categories. |
-| **Ledger** | Full transaction log — deposits, deductions, freezes, and unfreezes. |
-| **API Keys** | Create, view, and revoke API keys scoped to this project. |
+| **Overview** | At-a-glance project health: traffic, spend, and recent activity. |
+| **Models** | Browse and configure the models your customers can call through the gateway. |
+| **Customers** | Browse all customers, inspect their wallets, and view available funds. |
+| **Keys** | Create, view, and revoke API keys scoped to this project. |
+| **Usage** | Per-call usage and cost across the gateway and the billing ledger. |
 | **Settings** | Rename the project or manage other project-level configurations. |
+
+A project exposes two kinds of keys: `vb_live_` project keys for server-side use (they require an `X-Velobase-Customer` header to say who to bill) and `vb_customer_` customer-scoped keys (they carry their own customer binding, so no header is needed).
 
 ## Isolation Model
 
-Each project is a fully independent billing namespace:
+Each project is a fully independent namespace for gateway traffic and billing:
 
 - **API Keys** are scoped to a single project. A key from project A cannot access customers in project B.
-- **Customers** belong to exactly one project. The same `customer_id` in two different projects refers to two different customers with separate balances.
-- **Billing records** (deposits, deductions, freezes) are project-scoped and never cross boundaries.
+- **Customers** belong to exactly one project. The same `customer_id` in two different projects refers to two different customers with separate wallets.
+- **Usage and billing records** (gateway calls, deposits, deductions, freezes) are project-scoped and never cross boundaries.
 
-This means you can safely use one project for production and another for testing without any risk of interference.
+This means you can safely use one project for production and another for testing without any risk of interference. Wallet balances are tracked per customer using explicit unit fields (`amount_usd`, `amount_cents`, `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits), so funds are always unambiguous across projects.
 
 ## Tips
 

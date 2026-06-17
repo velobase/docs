@@ -1,44 +1,136 @@
 ---
 title: "Customers & Ledger"
 sidebarTitle: "Customers & Ledger"
-description: "Manually adjust balances and inspect detailed logs."
+description: "Inspect customer wallets and every billing event in your project."
 ---
 
-The Dashboard provides full visibility into your customers and every billing event that occurs in your project.
+The Dashboard gives you full visibility into your customers and every billing event in your project. This covers two kinds of activity:
+
+- **Gateway usage**: model calls your customers make through Velobase. Point an OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and pass `X-Velobase-Customer: <user-id>` so each call is metered and billed to that customer's wallet.
+- **Work you price yourself**: balance changes you drive with the billing primitives (`freeze`, `consume`, `deduct`, `unfreeze`) for tasks you charge for outside the model gateway.
+
+Both flows land in the same customer wallets and the same Ledger.
 
 ## Customers
 
-Customers in Velobase act as virtual accounts. They are tied to your own system's users via a `customer_id` — the unique identifier you assign.
+Customers in Velobase act as virtual accounts. They are tied to your own system's users via a customer id (`X-Velobase-Customer`), the unique identifier you assign.
 
 **You don't need to manually create customers.**
-When you make an API call to deposit or deduct credits for a `customer_id`, Velobase will automatically create the customer profile if it doesn't exist yet.
+When you make an API call to deposit or bill a customer, Velobase automatically creates the customer profile if it doesn't exist yet.
 
-## Wallet Categories and Expiry
+The live project navigation is: Overview, Models, Customers, Keys, Usage, Settings. The **Customers** section is where you inspect each customer's wallets and Ledger.
 
-Clicking on a customer reveals their complete balance details. A single customer can hold multiple **Wallet Categories** (known as `credit_type` in the API).
+<Note>
+A customer can be billed two ways. With a project key (`vb_live_`) your backend passes `X-Velobase-Customer: <user-id>` to say who to bill. With a customer-scoped key (`vb_customer_`) the key already carries its customer binding, so no header is needed.
+</Note>
 
-| Wallet | Status | Expiry | Total | Available | Frozen |
+## Wallets and expiry
+
+Clicking on a customer reveals their wallet details. A single customer can hold multiple **wallets**, and each wallet draws from one or more funding sources.
+
+| Wallet | Source | Expiry | Total | Available | Frozen |
 | --- | --- | --- | --- | --- | --- |
-| `default` | ACTIVE | Never expires | 1,000 | 1,000 | 0 |
-| `promo_campaign_2026` | ACTIVE | Dec 31, 2026 | 500 | 400 | 100 |
+| `default` | deposit | Never expires | 1,000 | 1,000 | 0 |
+| `default` | promo_campaign_2026 | Dec 31, 2026 | 500 | 400 | 100 |
 | **Total** | | | **1,500** | **1,400** | **100** |
 
-This separation is incredibly powerful for promotional campaigns, refunds, or specific use cases:
+This separation is powerful for promotional campaigns, refunds, or specific use cases:
 
-- **Expiring Credits**: You can grant credits that are only valid until a certain date (e.g., `promo_campaign_2026`). Velobase automatically ignores expired wallets.
-- **Consumption Priority**: When you deduct credits without specifying a wallet, Velobase consumes the ones that expire soonest first, maximizing value for the user.
+- **Expiring funds**: you can grant funds that are only valid until a certain date (for example `promo_campaign_2026`). Velobase automatically ignores expired sources.
+- **Consumption priority**: when you bill a customer without specifying a source, Velobase consumes the funds that expire soonest first, maximizing value for the user.
+
+### Reading a customer's wallets
+
+`GET /v1/customers/{id}` returns the customer profile with a `wallets` object. Each wallet has rolled-up totals plus a breakdown by funding source.
+
+<ResponseField name="id" type="string">
+The customer id you assigned.
+</ResponseField>
+
+<ResponseField name="name" type="string">
+Display name, if set.
+</ResponseField>
+
+<ResponseField name="email" type="string">
+Email, if set.
+</ResponseField>
+
+<ResponseField name="metadata" type="object">
+Arbitrary key/value data you attached to the customer.
+</ResponseField>
+
+<ResponseField name="wallets" type="object">
+Map of wallet name to wallet summary. Each wallet has `total`, `used`, `frozen`, `available`, and a `sources` array. Each source has `source`, `total`, `used`, `frozen`, `available`, `starts_at`, and `expires_at`.
+</ResponseField>
+
+<ResponseField name="created_at" type="string">
+When the customer was first created.
+</ResponseField>
+
+```json Example response
+{
+  "id": "user_987",
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "metadata": { "plan": "pro" },
+  "wallets": {
+    "default": {
+      "total": 1500,
+      "used": 0,
+      "frozen": 100,
+      "available": 1400,
+      "sources": [
+        {
+          "source": "deposit",
+          "total": 1000,
+          "used": 0,
+          "frozen": 0,
+          "available": 1000,
+          "starts_at": null,
+          "expires_at": null
+        },
+        {
+          "source": "promo_campaign_2026",
+          "total": 500,
+          "used": 0,
+          "frozen": 100,
+          "available": 400,
+          "starts_at": "2026-01-01T00:00:00Z",
+          "expires_at": "2026-12-31T23:59:59Z"
+        }
+      ]
+    }
+  },
+  "created_at": "2026-01-15T09:30:00Z"
+}
+```
+
+<Note>
+Wallet amounts are in **credits**. Amount fields elsewhere in the API are explicit: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and means cents. Prefer `amount_usd` when you can.
+</Note>
+
+## Topping up a wallet
+
+Most wallets are funded when your end users pay you and you call deposit. Send `POST /v1/customers/deposit` (or `POST /v1/customers/{id}/deposit`) with an explicit amount field such as `amount_usd`. There is no `/v1/billing/deposit` endpoint.
 
 ## Ledger
 
-The Ledger is the single source of truth for all balance changes. Every API call that modifies a balance results in an immutable Ledger record.
+The Ledger is the single source of truth for all balance changes. Every API call that modifies a wallet results in an immutable Ledger record. Gateway model calls and billing-primitive operations both appear here.
 
 Key concepts for tracking transactions:
 
-- **Transaction ID**: Every operation requires a unique `transaction_id` from your system (or `idempotency_key` for deposits). This appears in the Ledger, allowing you to match a specific charge (e.g., `task_xyz`) to the exact credits frozen and consumed.
-- **Operation Types**:
-  - `DEPOSIT`: Credits added to an account.
-  - `FREEZE`: Credits reserved for an ongoing task.
-  - `CONSUME`: Credits permanently deducted (often following a freeze).
-  - `UNFREEZE`: Unused reserved credits returned to the available balance.
+- **Transaction id**: every billing-primitive operation requires a unique `transaction_id` from your system (or `idempotency_key` for deposits). It appears in the Ledger, letting you match a specific charge (for example `task_xyz`) to the exact funds frozen and consumed. Gateway model calls also return an `x-velobase-transaction-id` header you can reconcile against.
+- **Operation types**:
+  - `DEPOSIT`: funds added to a wallet.
+  - `FREEZE`: funds reserved for an ongoing task. See `POST /v1/billing/freeze`.
+  - `CONSUME`: funds permanently deducted, often following a freeze. See `POST /v1/billing/consume`.
+  - `DEDUCT`: funds deducted in one step without a prior freeze. See `POST /v1/billing/deduct`.
+  - `UNFREEZE`: unused reserved funds returned to the available balance. See `POST /v1/billing/unfreeze`.
 
-By using the Ledger and Transaction IDs, you can answer questions like _"Why was user_987 charged 80 credits?"_ in seconds.
+Gateway calls also surface their cost inline on the response: `x-velobase-cost-cents`, `x-velobase-cost-credits`, and the post-call `x-velobase-balance-credits`.
+
+By using the Ledger and transaction ids, you can answer questions like _"Why was user_987 charged 80 credits?"_ in seconds.
+
+<Card title="Gateway quickstart" href="/quickstart" icon="bolt">
+New to Velobase? Start by routing your first model call through the gateway, then come back here to watch the wallet draw down.
+</Card>

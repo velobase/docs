@@ -4,15 +4,113 @@ sidebarTitle: "Endpoints"
 description: "Complete reference for all Velobase API endpoints."
 ---
 
-The Velobase API is organized around REST. It accepts JSON-encoded request bodies and returns JSON-encoded responses.
+Velobase is an AI gateway first. Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and bill every model call to an end-customer's wallet by sending the `X-Velobase-Customer: <user-id>` header. It is also a billing ledger (freeze, consume, deduct) for work you price yourself.
+
+This page covers the REST surface for managing customers and their wallets, plus the billing primitives. It accepts JSON-encoded request bodies and returns JSON-encoded responses. For the model gateway itself (`POST /v1/chat/completions`, `POST /v1/messages`, `GET /v1/models`, `GET /v1/usage`), see the gateway reference.
 
 Base URL: `https://api.velobase.io`
 
+<Note>
+  Amount fields are explicit about their unit: `amount_usd`, `amount_cents`, and `amount_credits`. 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and means cents. Prefer `amount_usd`.
+</Note>
+
+## Model gateway
+
+The gateway is OpenAI- and Anthropic-compatible. Set your SDK's base URL to `https://api.velobase.io/v1`, authenticate with a project key, and name the end-customer to bill with the `X-Velobase-Customer` header. The call is relayed upstream and the real token cost is settled against that customer's wallet.
+
+| Endpoint | Description |
+| --- | --- |
+| `POST /v1/chat/completions` | OpenAI-compatible chat completions. Supports streaming. |
+| `POST /v1/messages` | Anthropic-compatible messages. |
+| `GET /v1/models` | List available models. Authenticated, not billed. |
+| `GET /v1/usage` | Per-call usage and cost records. |
+
+<Note>
+  Health check is unauthenticated at `GET /health` (no `/v1` prefix). For a quick authenticated check, call `GET /v1/models`.
+</Note>
+
+#### Authentication and routing
+
+Two key types decide which customer is billed:
+
+- `vb_live_` is a project key for server-side use. Pair it with `X-Velobase-Customer: <user-id>` to name the customer to bill.
+- `vb_customer_` is a customer-scoped key that already carries its own customer binding, so no header is needed. It supports an `allowedModels` whitelist and `expiresAt`.
+
+Billable endpoints require a resolvable customer (header or key binding) or return 400. Non-billable endpoints like `GET /v1/models` do not.
+
+#### Per-call billing headers
+
+Each billed response includes settlement details:
+
+- `x-velobase-cost-cents`
+- `x-velobase-cost-credits`
+- `x-velobase-balance-credits`
+- `x-velobase-transaction-id`
+
+#### Models
+
+Velobase is model-agnostic. Live models include:
+
+- `deepseek/deepseek-v4-pro` (supports streaming)
+- `anthropic/claude-opus-4.5`, `anthropic/claude-opus-4.6`, `anthropic/claude-opus-4.7`, `anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`, `anthropic/claude-haiku-4.5` (served via Bedrock, non-streaming)
+
+More models are available through additional upstreams. Call `GET /v1/models` for the current list.
+
+#### Example request
+
+<CodeGroup>
+
+```python Python
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="https://api.velobase.io/v1",
+    api_key="vb_live_1234567890abcdef",
+)
+
+resp = client.chat.completions.create(
+    model="deepseek/deepseek-v4-pro",
+    messages=[{"role": "user", "content": "Hello!"}],
+    extra_headers={"X-Velobase-Customer": "user_987"},
+)
+```
+
+```bash cURL
+curl https://api.velobase.io/v1/chat/completions \
+  -H "Authorization: Bearer vb_live_1234567890abcdef" \
+  -H "X-Velobase-Customer: user_987" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek/deepseek-v4-pro",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+</CodeGroup>
+
+#### SDKs
+
+The Velobase billing SDKs wrap the customer and wallet endpoints below. The gateway itself works with any OpenAI or Anthropic SDK.
+
+<CodeGroup>
+
+```bash Python
+pip install "velobase-billing>=0.2.1"
+```
+
+```bash JavaScript
+npm i @velobaseai/billing@^1.1.1
+```
+
+</CodeGroup>
+
+You can manage models, customers, keys, and usage in the dashboard under Overview, Models, Customers, Keys, Usage, and Settings.
+
 ## Customers
 
-### Get customer balance
+### Get a customer
 
-Retrieve a customer's total, frozen, and available balances, along with a detailed breakdown of all their wallet categories (`accounts`).
+Retrieve a customer's profile and their wallets. Each wallet reports `total`, `used`, `frozen`, and `available`, plus a per-source breakdown.
 
 **`GET /v1/customers/:customer_id`**
 
@@ -36,35 +134,14 @@ Retrieve a customer's total, frozen, and available balances, along with a detail
   The customer's email address.
 </ResponseField>
 
-<ResponseField name="balance" type="object">
-  Aggregated balance totals across all wallets.
-
-  <Expandable title="properties">
-    <ResponseField name="total" type="number">
-      Total credits ever deposited.
-    </ResponseField>
-    <ResponseField name="used" type="number">
-      Credits that have been consumed.
-    </ResponseField>
-    <ResponseField name="frozen" type="number">
-      Credits currently reserved for an in-progress task.
-    </ResponseField>
-    <ResponseField name="available" type="number">
-      Credits immediately available to spend.
-    </ResponseField>
-  </Expandable>
+<ResponseField name="metadata" type="object">
+  Arbitrary key-value metadata you attached to this customer.
 </ResponseField>
 
-<ResponseField name="accounts" type="array">
-  Per-wallet breakdown. Each element represents one wallet category.
+<ResponseField name="wallets" type="object">
+  A map of wallet name to wallet balance. Each wallet reports its aggregate totals and a per-source breakdown.
 
-  <Expandable title="properties">
-    <ResponseField name="account_type" type="string">
-      The account type (e.g., `"CREDIT"`).
-    </ResponseField>
-    <ResponseField name="credit_type" type="string">
-      The wallet category label.
-    </ResponseField>
+  <Expandable title="wallet properties">
     <ResponseField name="total" type="number">
       Total credits in this wallet.
     </ResponseField>
@@ -72,16 +149,37 @@ Retrieve a customer's total, frozen, and available balances, along with a detail
       Consumed credits in this wallet.
     </ResponseField>
     <ResponseField name="frozen" type="number">
-      Frozen credits in this wallet.
+      Credits currently reserved for an in-progress task.
     </ResponseField>
     <ResponseField name="available" type="number">
-      Available credits in this wallet.
+      Credits immediately available to spend.
     </ResponseField>
-    <ResponseField name="starts_at" type="string | null">
-      ISO 8601 datetime. Credits are inactive before this date, or `null` if not set.
-    </ResponseField>
-    <ResponseField name="expires_at" type="string | null">
-      ISO 8601 datetime. Credits expire after this date, or `null` if not set.
+    <ResponseField name="sources" type="array">
+      Per-source breakdown of this wallet. Each source is one deposit grant with its own validity window.
+
+      <Expandable title="source properties">
+        <ResponseField name="source" type="string">
+          The source label for this grant.
+        </ResponseField>
+        <ResponseField name="total" type="number">
+          Total credits from this source.
+        </ResponseField>
+        <ResponseField name="used" type="number">
+          Consumed credits from this source.
+        </ResponseField>
+        <ResponseField name="frozen" type="number">
+          Frozen credits from this source.
+        </ResponseField>
+        <ResponseField name="available" type="number">
+          Available credits from this source.
+        </ResponseField>
+        <ResponseField name="starts_at" type="string | null">
+          ISO 8601 datetime. Credits are inactive before this date, or `null` if not set.
+        </ResponseField>
+        <ResponseField name="expires_at" type="string | null">
+          ISO 8601 datetime. Credits expire after this date, or `null` if not set.
+        </ResponseField>
+      </Expandable>
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -94,7 +192,7 @@ Retrieve a customer's total, frozen, and available balances, along with a detail
 
 ```bash
 curl https://api.velobase.io/v1/customers/user_987 \
-  -H "Authorization: Bearer vb_1234567890abcdef"
+  -H "Authorization: Bearer vb_live_1234567890abcdef"
 ```
 
 #### Example response
@@ -104,46 +202,58 @@ curl https://api.velobase.io/v1/customers/user_987 \
   "id": "user_987",
   "name": "Alice",
   "email": "alice@example.com",
-  "balance": {
-    "total": 1500,
-    "used": 0,
-    "frozen": 0,
-    "available": 1500
-  },
-  "accounts": [
-    {
-      "account_type": "CREDIT",
-      "credit_type": "default",
-      "total": 1500,
+  "metadata": {},
+  "wallets": {
+    "default": {
+      "total": 1500000000,
       "used": 0,
       "frozen": 0,
-      "available": 1500,
-      "starts_at": null,
-      "expires_at": null
+      "available": 1500000000,
+      "sources": [
+        {
+          "source": "default",
+          "total": 1500000000,
+          "used": 0,
+          "frozen": 0,
+          "available": 1500000000,
+          "starts_at": null,
+          "expires_at": null
+        }
+      ]
     }
-  ],
+  },
   "created_at": "2026-04-07T12:00:00.000Z"
 }
 ```
 
+<Note>
+  Wallet balances are reported in credits. The example above shows 1,500,000,000 credits, which is $1,500.00 (1 USD = 1,000,000 credits). There is a separate `GET /v1/customers/:customer_id/balance` endpoint that returns an object-shaped summary if you need it.
+</Note>
+
 ---
 
-## Billing & credits
+## Customer wallets
 
-### Deposit credits
+These endpoints fund and settle a customer's wallet directly. Use them for work you price yourself, such as a fixed credit grant or a one-shot charge. Model calls made through the gateway settle automatically against the wallet, so you do not need these for per-token billing.
 
-Add credits to a customer's account. If the customer does not exist yet, Velobase automatically creates them using the `name` and `email` fields you provide.
+### Deposit to a wallet
 
-**`POST /v1/billing/deposit`**
+Add funds to a customer's wallet. If the customer does not exist yet, Velobase automatically creates them using the `name` and `email` fields you provide.
+
+**`POST /v1/customers/deposit`**
+
+<Note>
+  You can also scope the deposit by path: `POST /v1/customers/:customer_id/deposit`.
+</Note>
 
 #### Request parameters
 
 <ParamField body="customer_id" type="string" required>
-  The unique identifier for this customer in your system.
+  The unique identifier for this customer in your system. Omit this when using the `:customer_id` path form.
 </ParamField>
 
-<ParamField body="amount" type="number" required>
-  Positive integer amount to deposit.
+<ParamField body="amount_usd" type="number" required>
+  Amount to deposit, in US dollars. You may instead send `amount_cents` or `amount_credits` (1 USD = 100 cents = 1,000,000 credits). A bare `amount` is legacy and is interpreted as cents.
 </ParamField>
 
 <ParamField body="idempotency_key" type="string" required>
@@ -193,7 +303,7 @@ Add credits to a customer's account. If the customer does not exist yet, Velobas
 </ResponseField>
 
 <ResponseField name="added_amount" type="number">
-  Credits added in this operation.
+  Credits added in this operation. 1 USD = 1,000,000 credits.
 </ResponseField>
 
 <ResponseField name="starts_at" type="string | null">
@@ -215,12 +325,12 @@ Add credits to a customer's account. If the customer does not exist yet, Velobas
 #### Example request
 
 ```bash
-curl -X POST https://api.velobase.io/v1/billing/deposit \
-  -H "Authorization: Bearer vb_1234567890abcdef" \
+curl -X POST https://api.velobase.io/v1/customers/deposit \
+  -H "Authorization: Bearer vb_live_1234567890abcdef" \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount": 1000,
+    "amount_usd": 10,
     "idempotency_key": "dep_unique_001"
   }'
 ```
@@ -232,8 +342,8 @@ curl -X POST https://api.velobase.io/v1/billing/deposit \
   "customer_id": "user_987",
   "account_id": "acc_abc123",
   "credit_type": "default",
-  "total_amount": 1000,
-  "added_amount": 1000,
+  "total_amount": 10000000,
+  "added_amount": 10000000,
   "starts_at": null,
   "expires_at": null,
   "record_id": "rec_xyz789",
@@ -243,9 +353,13 @@ curl -X POST https://api.velobase.io/v1/billing/deposit \
 
 ---
 
+## Billing primitives
+
+The freeze, consume, deduct, and unfreeze primitives let you reserve and settle a customer's wallet for work you price yourself, keyed by your own `transaction_id`. Model calls made through the gateway settle automatically and do not need these.
+
 ### Direct deduct
 
-Atomically deduct credits from a customer's available balance in a single step. Use this for immediate, one-shot charges where you do not need to reserve credits first.
+Atomically deduct from a customer's available balance in a single step. Use this for immediate, one-shot charges where you do not need to reserve funds first.
 
 **`POST /v1/billing/deduct`**
 
@@ -255,8 +369,8 @@ Atomically deduct credits from a customer's available balance in a single step. 
   The unique identifier for this customer in your system.
 </ParamField>
 
-<ParamField body="amount" type="number" required>
-  Positive integer amount to deduct.
+<ParamField body="amount_usd" type="number" required>
+  Amount to deduct, in US dollars. You may instead send `amount_cents` or `amount_credits` (1 USD = 100 cents = 1,000,000 credits). A bare `amount` is legacy and is interpreted as cents.
 </ParamField>
 
 <ParamField body="transaction_id" type="string" required>
@@ -297,11 +411,11 @@ Atomically deduct credits from a customer's available balance in a single step. 
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/deduct \
-  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Authorization: Bearer vb_live_1234567890abcdef" \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount": 200,
+    "amount_usd": 2,
     "transaction_id": "task_001"
   }'
 ```
@@ -311,12 +425,12 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
 ```json
 {
   "transaction_id": "task_001",
-  "deducted_amount": 200,
+  "deducted_amount": 2000000,
   "deduct_details": [
     {
       "account_id": "acc_abc123",
       "credit_type": "default",
-      "amount": 200
+      "amount": 2000000
     }
   ],
   "deducted_at": "2026-04-08T10:30:00.000Z",
@@ -328,7 +442,7 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
 
 ### Freeze credits
 
-Reserve a specific amount of credits for an ongoing task. Frozen credits are held exclusively for that task and cannot be spent by any other operation until they are consumed or unfrozen.
+Reserve a specific amount for an ongoing task. Frozen credits are held exclusively for that task and cannot be spent by any other operation until they are consumed or unfrozen.
 
 **`POST /v1/billing/freeze`**
 
@@ -338,8 +452,8 @@ Reserve a specific amount of credits for an ongoing task. Frozen credits are hel
   The unique identifier for this customer in your system.
 </ParamField>
 
-<ParamField body="amount" type="number" required>
-  Positive integer amount to freeze.
+<ParamField body="amount_usd" type="number" required>
+  Amount to freeze, in US dollars. You may instead send `amount_cents` or `amount_credits` (1 USD = 100 cents = 1,000,000 credits). A bare `amount` is legacy and is interpreted as cents.
 </ParamField>
 
 <ParamField body="transaction_id" type="string" required>
@@ -376,11 +490,11 @@ Reserve a specific amount of credits for an ongoing task. Frozen credits are hel
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/freeze \
-  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Authorization: Bearer vb_live_1234567890abcdef" \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount": 500,
+    "amount_usd": 5,
     "transaction_id": "task_002"
   }'
 ```
@@ -390,12 +504,12 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
 ```json
 {
   "transaction_id": "task_002",
-  "frozen_amount": 500,
+  "frozen_amount": 5000000,
   "freeze_details": [
     {
       "account_id": "acc_abc123",
       "credit_type": "default",
-      "amount": 500
+      "amount": 5000000
     }
   ],
   "is_idempotent_replay": false
@@ -406,7 +520,7 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
 
 ### Consume frozen credits
 
-Permanently deduct credits from a previously frozen transaction. You supply the actual amount used — which may be less than what was originally frozen — and Velobase returns any remainder to the customer's available balance.
+Permanently deduct from a previously frozen transaction. You supply the actual amount used, which may be less than what was originally frozen, and Velobase returns any remainder to the customer's available balance.
 
 **`POST /v1/billing/consume`**
 
@@ -416,8 +530,8 @@ Permanently deduct credits from a previously frozen transaction. You supply the 
   The `transaction_id` used in the original `freeze` call.
 </ParamField>
 
-<ParamField body="actual_amount" type="number" required>
-  Positive integer amount to actually deduct. Must be less than or equal to the originally frozen amount.
+<ParamField body="actual_amount_usd" type="number" required>
+  Amount to actually deduct, in US dollars. You may instead send `actual_amount_cents` or `actual_amount_credits` (1 USD = 100 cents = 1,000,000 credits). A bare `actual_amount` is legacy and is interpreted as cents. Must be less than or equal to the originally frozen amount.
 </ParamField>
 
 #### Response fields
@@ -450,11 +564,11 @@ Permanently deduct credits from a previously frozen transaction. You supply the 
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/consume \
-  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Authorization: Bearer vb_live_1234567890abcdef" \
   -H "Content-Type: application/json" \
   -d '{
     "transaction_id": "task_002",
-    "actual_amount": 300
+    "actual_amount_usd": 3
   }'
 ```
 
@@ -463,13 +577,13 @@ curl -X POST https://api.velobase.io/v1/billing/consume \
 ```json
 {
   "transaction_id": "task_002",
-  "consumed_amount": 300,
-  "returned_amount": 200,
+  "consumed_amount": 3000000,
+  "returned_amount": 2000000,
   "consume_details": [
     {
       "account_id": "acc_abc123",
       "credit_type": "default",
-      "amount": 300
+      "amount": 3000000
     }
   ],
   "consumed_at": "2026-04-08T10:35:00.000Z",
@@ -517,7 +631,7 @@ Release all unused frozen credits back to the customer's available balance. Use 
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/unfreeze \
-  -H "Authorization: Bearer vb_1234567890abcdef" \
+  -H "Authorization: Bearer vb_live_1234567890abcdef" \
   -H "Content-Type: application/json" \
   -d '{
     "transaction_id": "task_002"
@@ -529,12 +643,12 @@ curl -X POST https://api.velobase.io/v1/billing/unfreeze \
 ```json
 {
   "transaction_id": "task_002",
-  "unfrozen_amount": 500,
+  "unfrozen_amount": 5000000,
   "unfreeze_details": [
     {
       "account_id": "acc_abc123",
       "credit_type": "default",
-      "amount": 500
+      "amount": 5000000
     }
   ],
   "unfrozen_at": "2026-04-08T10:40:00.000Z",

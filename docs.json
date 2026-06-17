@@ -57,6 +57,7 @@
             "group": "Integration Guides",
             "pages": [
               "integration/openai-compatible",
+              "integration/copy-for-ai",
               "integration/tutorial",
               "integration/mcp",
               "integration/depositing-credits",

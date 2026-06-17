@@ -4,7 +4,11 @@ sidebarTitle: "Handling Errors"
 description: "Understand Velobase API error responses and common error codes."
 ---
 
-When an API request fails, Velobase returns a standard JSON error response alongside an appropriate HTTP status code.
+When an API request fails, Velobase returns a standard JSON error response alongside an appropriate HTTP status code. The same error shape applies to every surface: model gateway calls (`POST /v1/chat/completions`, `POST /v1/messages`), customer and deposit endpoints, and the billing primitives you use for work you price yourself (`POST /v1/billing/freeze`, `/v1/billing/consume`, `/v1/billing/deduct`, `/v1/billing/unfreeze`).
+
+<Note>
+  Most failures on the model gateway come down to one of two things: the request did not resolve an end-customer to bill (no `X-Velobase-Customer` header and a project key, or an expired customer-scoped key), or the customer's wallet has no available funds. See the gateway section below.
+</Note>
 
 ## Error Format
 
@@ -13,9 +17,9 @@ All errors return a structured `error` object containing three fields:
 ```json
 {
   "error": {
-    "message": "insufficient balance in selected credit_types",
+    "message": "insufficient available funds in customer wallet",
     "type": "bad_request",
-    "code": "insufficient_balance_in_selected_credit_types"
+    "code": "insufficient_balance"
   }
 }
 ```
@@ -31,17 +35,29 @@ All errors return a structured `error` object containing three fields:
 Below is a list of common `error.code` values you may encounter, organized by category.
 
 <AccordionGroup>
-  <Accordion title="Authentication — 401 Unauthorized">
-    These errors occur when the `Authorization` header is missing, malformed, or the key has been deactivated.
+  <Accordion title="Authentication: 401 Unauthorized">
+    These errors occur when the `Authorization` header is missing, malformed, or the key has been deactivated. Both project keys (`vb_live_`) and customer-scoped keys (`vb_customer_`) authenticate here.
 
     | Code | Description |
     |---|---|
     | `missing_api_key` | No API key was provided in the `Authorization` header. |
     | `invalid_api_key` | The provided API key is malformed or does not exist. |
-    | `api_key_revoked` | The API key has been revoked in the dashboard. |
+    | `api_key_revoked` | The API key has been revoked in the dashboard (Keys section). |
   </Accordion>
 
-  <Accordion title="Validation & routing — 400 Bad Request / 404 Not Found">
+  <Accordion title="Model gateway: customer resolution and routing">
+    These errors occur on billable model calls (`POST /v1/chat/completions`, `POST /v1/messages`) when Velobase cannot decide which customer to bill, or the request targets a model that is not available to the key. Non-billable endpoints such as `GET /v1/models` do not require a resolvable customer.
+
+    | Code | HTTP | Description |
+    |---|---|---|
+    | `customer_not_found` | 404 | The `X-Velobase-Customer` value, or the customer bound to a `vb_customer_` key, does not match any customer. |
+    | `customer_required` | 400 | A project key (`vb_live_`) was used on a billable endpoint without an `X-Velobase-Customer: <user-id>` header, so there is no customer to bill. |
+    | `api_key_expired` | 401 | A customer-scoped key (`vb_customer_`) is past its `expiresAt`. |
+    | `model_not_found` | 404 | The requested model id does not exist. Live model ids include `deepseek/deepseek-v4-pro` (supports streaming) and `anthropic/claude-opus-4.8`, `claude-opus-4.7`, `claude-opus-4.6`, `claude-opus-4.5`, `claude-sonnet-4.6`, `claude-haiku-4.5` (Bedrock, non-streaming). |
+    | `model_not_allowed` | 403 | The model is not in the `allowedModels` whitelist for this customer-scoped key. |
+  </Accordion>
+
+  <Accordion title="Validation and routing: 400 Bad Request / 404 Not Found">
     These errors occur when request parameters are invalid or a referenced resource does not exist.
 
     | Code | HTTP | Description |
@@ -52,27 +68,29 @@ Below is a list of common `error.code` values you may encounter, organized by ca
     | `customer_not_found` | 404 | The requested `customer_id` does not exist. |
   </Accordion>
 
-  <Accordion title="Balance & deduction — 400 Bad Request">
-    These errors occur when a billing operation cannot be completed due to insufficient funds or an invalid operation sequence.
+  <Accordion title="Wallet and deduction: 400 Bad Request">
+    These errors occur when a billing operation cannot be completed because the customer's wallet has no available funds, or the freeze/consume/deduct sequence is invalid. They apply both to per-call model billing and to the billing primitives you use for work you price yourself.
+
+    Amounts are expressed in explicit unit fields: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and means cents.
 
     | Code | Description |
     |---|---|
-    | `insufficient_balance` | The customer does not have enough total available credits. |
-    | `insufficient_balance_in_selected_credit_types` | The customer has enough credits overall, but not within the specific `credit_types` requested. |
+    | `insufficient_balance` | The customer's wallet does not have enough available funds. Top it up with `POST /v1/customers/deposit`. |
+    | `insufficient_balance_in_selected_credit_types` | The wallet has enough funds overall, but not within the specific `credit_types` requested. |
     | `no_consumable_freeze_records` | You attempted to `consume` a transaction that was never frozen or cannot be found. |
-    | `freeze_records_already_consumed` | The frozen credits for this `transaction_id` have already been consumed. |
+    | `freeze_records_already_consumed` | The frozen funds for this `transaction_id` have already been consumed. |
     | `no_unfreezable_records` | You attempted to `unfreeze` a transaction that was never frozen, or has already been consumed or unfrozen. |
     | `actual_amount_exceeds_frozen_amount` | The amount passed to `consume` is greater than the amount originally frozen for this transaction. |
   </Accordion>
 
-  <Accordion title="Concurrency & consistency — 409 Conflict / 500 Internal Server Error">
+  <Accordion title="Concurrency and consistency: 409 Conflict / 500 Internal Server Error">
     These errors indicate a conflict between two requests or an unexpected internal failure.
 
     | Code | HTTP | Description |
     |---|---|---|
     | `transaction_conflict` | 409 | The `transaction_id` was already used for a different customer. |
     | `customer_scope_mismatch` | 409 | An operation referenced a record belonging to a different customer. |
-    | `billing_account_not_found` | 500 | An internal inconsistency where an expected billing account is missing. |
+    | `billing_account_not_found` | 500 | An internal inconsistency where an expected wallet account is missing. |
     | `server_error` | 500 | An unexpected internal error occurred on the Velobase servers. |
   </Accordion>
 </AccordionGroup>

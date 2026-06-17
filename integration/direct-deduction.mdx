@@ -1,14 +1,18 @@
 ---
 title: "Direct Deduction"
 sidebarTitle: "Direct Deduction"
-description: "Deduct credits directly from a user's available balance when cost is known."
+description: "Deduct from a customer's wallet in one request when cost is known."
 ---
 
-Use `POST /v1/billing/deduct` to deduct credits from a user's available balance in a single request.
+Use `POST /v1/billing/deduct` to deduct from a customer's available wallet balance in a single request.
 
-This is the right choice for fixed-price image generation, fixed-cost API calls, and other one-time operations where cost is known upfront.
+This is the right choice for fixed-price image generation, fixed-cost API calls, and other one-time operations where cost is known upfront. It is one of the billing primitives you use for work you price yourself.
 
-If cost is unknown in advance, or you need to reserve credits before settlement, use [staged deduction](/integration/staged-deduction) instead.
+<Note>
+  Model calls you route through the Velobase AI gateway (`POST /v1/chat/completions`, `POST /v1/messages`) bill the customer wallet automatically at real token cost. You do not need to call `deduct` for those. Use direct deduction for your own priced work. See the [gateway quickstart](/quickstart) for routing model calls.
+</Note>
+
+If cost is unknown in advance, or you need to reserve funds before settlement, use [staged deduction](/integration/staged-deduction) instead.
 
 ## Minimal Example
 
@@ -19,22 +23,22 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   -d '{
     "customer_id": "user_987",
     "transaction_id": "img_gen_001",
-    "amount": 5
+    "amount_usd": 0.05
   }'
 ```
 
 ## Parameters
 
 <ParamField path="body.customer_id" type="string" required>
-  The unique identifier for this customer. The customer must already exist and have enough available credits.
+  The unique identifier for this customer. The customer must already exist and have enough available balance in their wallet.
 </ParamField>
 
 <ParamField path="body.transaction_id" type="string" required>
-  Unique ID for this charge transaction. Also serves as the idempotency key — repeating a request with the same `transaction_id` returns the original result without double-charging.
+  Unique ID for this charge transaction. Also serves as the idempotency key: repeating a request with the same `transaction_id` returns the original result without double-charging.
 </ParamField>
 
-<ParamField path="body.amount" type="number" required>
-  Credits to deduct. Must be greater than 0.
+<ParamField path="body.amount_usd" type="number" required>
+  Amount to deduct, in US dollars. Must be greater than 0. You can instead pass `amount_cents` or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and is interpreted as cents.
 </ParamField>
 
 <ParamField path="body.credit_types" type="string[]">
@@ -54,12 +58,12 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
 ```json
 {
   "transaction_id": "img_gen_001",
-  "deducted_amount": 5,
+  "deducted_amount": 50000,
   "deduct_details": [
     {
       "account_id": "...",
       "credit_type": "default",
-      "amount": 5
+      "amount": 50000
     }
   ],
   "deducted_at": "2026-04-07T12:00:00.000Z",
@@ -72,21 +76,21 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
 </ResponseField>
 
 <ResponseField name="deducted_amount" type="number">
-  Total credits actually deducted.
+  Total amount actually deducted, in credits (1,000,000 credits = 1 USD).
 </ResponseField>
 
 <ResponseField name="deduct_details" type="array">
-  Deduction breakdown. Credits may be consumed from multiple wallet categories when the amount spans more than one account.
+  Deduction breakdown. Funds may be consumed from multiple wallet categories when the amount spans more than one source.
 
   <Expandable title="deduct_details properties">
     <ResponseField name="account_id" type="string">
-      Underlying credit account ID used for the deduction.
+      Underlying funding source ID used for the deduction.
     </ResponseField>
     <ResponseField name="credit_type" type="string">
       Wallet category that was consumed.
     </ResponseField>
     <ResponseField name="amount" type="number">
-      Amount deducted from that account.
+      Amount deducted from that source, in credits.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -101,16 +105,16 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
 
 ## Deduction Rules and Wallet Categories
 
-- The system automatically deducts from all available credits.
+- The system automatically deducts from all available balance across the customer's wallets.
 - If `credit_types` is provided, deduction is limited to those wallet categories only.
 - Callers do not choose which wallet category to consume from.
-- Credits that expire sooner are consumed first; if expiry is the same, older accounts are consumed first.
-- Only credits that are currently active are eligible for deduction. Credits that have not started yet or have already expired are ignored.
-- Use the customer balance API to inspect remaining credits by `credit_type`.
+- Funds that expire sooner are consumed first. If expiry is the same, older sources are consumed first.
+- Only funds that are currently active are eligible for deduction. Sources that have not started yet or have already expired are ignored.
+- Use `GET /v1/customers/{id}` to inspect the remaining balance per wallet and per source.
 
 ## Insufficient Balance
 
-Returns `400` if the customer doesn't have enough available credits:
+Returns `400` if the customer doesn't have enough available balance:
 
 ```json
 {
@@ -127,7 +131,7 @@ Failed requests do not produce a partial deduction and do not leave behind a hal
 
 ## Idempotency
 
-Same `transaction_id` -> same result, `is_idempotent_replay: true`, no double charge.
+Same `transaction_id` returns the same result, with `is_idempotent_replay: true` and no double charge.
 
 ## Verify the Result
 
@@ -136,11 +140,42 @@ curl https://api.velobase.io/v1/customers/user_987 \
   -H "Authorization: Bearer your_api_key_here"
 ```
 
+`GET /v1/customers/{id}` returns the customer with a `wallets` map. Each wallet reports `total`, `used`, `frozen`, and `available`, plus a `sources` array broken down by funding source:
+
+```json
+{
+  "id": "user_987",
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "metadata": {},
+  "wallets": {
+    "default": {
+      "total": 10000000,
+      "used": 50000,
+      "frozen": 0,
+      "available": 9950000,
+      "sources": [
+        {
+          "source": "deposit",
+          "total": 10000000,
+          "used": 50000,
+          "frozen": 0,
+          "available": 9950000,
+          "starts_at": "2026-04-01T00:00:00.000Z",
+          "expires_at": null
+        }
+      ]
+    }
+  },
+  "created_at": "2026-04-01T00:00:00.000Z"
+}
+```
+
 After deduction, check:
 
-- whether `balance.available` decreased
-- which `accounts[].credit_type` entries were consumed
-- whether each `accounts[].available` value changed as expected
+- whether the wallet's `available` decreased (values are in credits, where 1,000,000 credits = 1 USD)
+- which `sources[]` entries were consumed
+- whether each `sources[].available` value changed as expected
 
 ## Error Format
 

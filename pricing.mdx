@@ -1,19 +1,25 @@
 ---
 title: "Plans & Billing"
 sidebarTitle: "Plans & Billing"
-description: "VeloBase pricing plans, billing cycles, and what counts as a transaction."
+description: "Velobase pricing plans, billing cycles, and what counts as a transaction."
 ---
 
 # Pricing
 
-VeloBase charges based on **Ledger Transactions** — only successful `Deduct` and `Consume` operations count. Deposits, freezes, unfreezes, and balance queries are always free.
+Velobase is an AI gateway first: point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and bill every model call to an end-customer's wallet with the `X-Velobase-Customer: <user-id>` header. It is also a billing ledger (freeze, consume, deduct) for work you price yourself.
+
+Velobase charges based on **ledger transactions**: only successful `Deduct` and `Consume` operations count. Deposits, freezes, unfreezes, and wallet queries are always free. Model gateway calls are settled against the end-customer wallet and reported back to you per request via the `x-velobase-cost-cents`, `x-velobase-cost-credits`, and `x-velobase-balance-credits` response headers.
+
+<Note>
+  New to the gateway? See the [Quickstart](/quickstart) to route your first model call and deposit funds to a customer wallet. This page covers what Velobase bills *you* for using the platform.
+</Note>
 
 ## What counts as a transaction?
 
 Only two operation types are billable:
 
-- **Deduct** — a direct, one-step deduction from a customer's balance.
-- **Consume** — the second step of a staged deduction (freeze → consume).
+- **Deduct**: a direct, one-step deduction from a customer's wallet.
+- **Consume**: the second step of a staged deduction (freeze then consume).
 
 Everything else is free:
 
@@ -24,20 +30,32 @@ Everything else is free:
 | Consume | **Yes** |
 | Unfreeze | No |
 | Deduct | **Yes** |
-| Get balance | No |
+| Get wallet | No |
+
+Each model gateway call (`POST /v1/chat/completions`, `POST /v1/messages`) settles its real token cost against the customer wallet and counts as one billable settlement, just like a `Consume`.
+
+## Units
+
+All amount fields are explicit about their unit:
+
+- `amount_usd`: dollars (preferred).
+- `amount_cents`: integer cents.
+- `amount_credits`: integer credits.
+
+The conversion is fixed: **1 USD = 100 cents = 1,000,000 credits**. A bare `amount` is legacy and means *cents*, not credits. Prefer `amount_usd` in new integrations.
 
 ## Plans
 
 | | Free | Pro | Enterprise |
 |---|---|---|---|
 | **Price** | $0 / mo | From $20 / mo | Custom |
-| **Included transactions** | 50,000 / mo | 500K – 50M / mo | Custom |
+| **Included transactions** | 50,000 / mo | 500K to 50M / mo | Custom |
 | **Overage** | Hard limit (429) | From $0.12 / 10k ops | Volume discount |
 | **Projects** | 1 | Unlimited | Unlimited |
 | **API keys** | 2 per project | Unlimited | Unlimited |
 | **Team members** | 1 | Up to 5 | Unlimited |
 | **Support** | Community | Email | Dedicated |
-| **SLA** | — | 99.9% | 99.99% |
+| **SLA** | None | 99.9% | 99.99% |
 
 ## Pro tiers
 
@@ -62,19 +80,37 @@ The Free plan allows up to **50,000 ledger transactions per month**. Once the li
   "error": {
     "type": "too_many_requests",
     "code": "usage_limit_exceeded",
-    "message": "monthly transaction limit reached — upgrade your plan"
+    "message": "monthly transaction limit reached, upgrade your plan"
   }
 }
 ```
 
-Deposits, freezes, unfreezes, and balance queries continue to work normally.
+Deposits, freezes, unfreezes, and wallet queries continue to work normally.
 
 ## Billing cycle
 
 - Each organization has a single billing subscription.
 - The billing period is calendar-monthly from the date of subscription creation.
-- Usage is tracked per organization across all projects. The dashboard shows a per-project breakdown.
+- Usage is tracked per organization across all projects. The dashboard shows a per-project breakdown under **Usage**.
 - Pro overage is billed at the end of each cycle.
+
+## Tracking your usage
+
+The project dashboard nav is: Overview, Models, Customers, Keys, Usage, Settings. The **Usage** section shows your billable ledger transactions and model gateway calls; you can also pull the same data programmatically from `GET /v1/usage`.
+
+If you build with the Velobase SDK, pin a version:
+
+<CodeGroup>
+
+```bash Python
+pip install "velobase-billing>=0.2.1"
+```
+
+```bash JavaScript
+npm i @velobaseai/billing@^1.1.1
+```
+
+</CodeGroup>
 
 ## Enterprise
 

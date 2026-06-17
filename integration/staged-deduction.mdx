@@ -1,20 +1,26 @@
 ---
 title: "Staged Deduction"
 sidebarTitle: "Staged Deduction"
-description: "When cost is unknown upfront, freeze credits first and settle the actual cost later."
+description: "When cost is unknown upfront, freeze funds first and settle the actual cost later."
 ---
 
-Use the `freeze -> consume / unfreeze` flow when cost is unknown upfront.
+Use the `freeze -> consume / unfreeze` flow to bill work that you price yourself, when the cost is unknown upfront. This is one half of Velobase: the billing ledger for your own work.
 
-This is the right choice for LLM inference, async tasks, and flows where final cost is only known after execution.
+This is the right choice for async tasks, batch jobs, and any flow where the final cost is only known after execution.
+
+<Note>
+  If you are billing model calls, you usually do not need this flow. Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and pass `X-Velobase-Customer: <user-id>`, and the gateway freezes, settles the real token cost, and deducts from the customer wallet for you on every call. See the [Quickstart](/quickstart) for the gateway path. Use staged deduction below when you price the work yourself rather than per model token.
+</Note>
 
 `transaction_id` is the unique ID for this charge transaction and stays the same across freeze, consume, and unfreeze.
+
+All amount fields are in cents. 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and is interpreted as cents.
 
 <Steps>
 
 <Step title="Freeze">
 
-Reserve a maximum budget before starting work. After freezing, credits are no longer available to spend, but they have not been consumed yet.
+Reserve a maximum budget before starting work. After freezing, the funds are no longer available to spend, but they have not been consumed yet.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/freeze \
@@ -23,26 +29,26 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   -d '{
     "customer_id": "user_987",
     "transaction_id": "llm_chat_001",
-    "amount": 100
+    "amount_cents": 100
   }'
 ```
 
 **Freeze Parameters**
 
 <ParamField path="body.customer_id" type="string" required>
-  The unique identifier for this customer. The customer must already exist and have enough available credits to cover the freeze amount.
+  The unique identifier for this customer. The customer must already exist and have enough available funds in their wallet to cover the freeze amount.
 </ParamField>
 
 <ParamField path="body.transaction_id" type="string" required>
   Unique ID for this charge transaction. Use the same value for the subsequent `consume` or `unfreeze` call.
 </ParamField>
 
-<ParamField path="body.amount" type="number" required>
-  Maximum credits to reserve. Must be greater than 0. Set this to the upper bound of expected cost.
+<ParamField path="body.amount_cents" type="number" required>
+  Maximum amount to reserve, in cents (1 USD = 100 cents = 1,000,000 credits). You may instead send `amount_usd` or `amount_credits`. A bare `amount` is legacy and is read as cents. Must be greater than 0. Set this to the upper bound of expected cost.
 </ParamField>
 
 <ParamField path="body.credit_types" type="string[]">
-  Restrict the freeze to these wallet categories only. If omitted, the system may use any active credits. The same categories are used automatically during consume.
+  Restrict the freeze to these wallet categories only. If omitted, the system may use any active funds. The same categories are used automatically during consume.
 </ParamField>
 
 <ParamField path="body.business_type" type="string">
@@ -75,21 +81,21 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
 </ResponseField>
 
 <ResponseField name="frozen_amount" type="number">
-  Total credits reserved by this freeze.
+  Total amount reserved by this freeze, in cents.
 </ResponseField>
 
 <ResponseField name="freeze_details" type="array">
-  Breakdown of which credit accounts were frozen. The system may freeze across multiple wallet categories.
+  Breakdown of which wallet sources were frozen. The system may freeze across multiple wallet categories.
 
   <Expandable title="freeze_details properties">
     <ResponseField name="account_id" type="string">
-      Underlying credit account ID that was frozen.
+      Underlying wallet source ID that was frozen.
     </ResponseField>
     <ResponseField name="credit_type" type="string">
       Wallet category that was frozen.
     </ResponseField>
     <ResponseField name="amount" type="number">
-      Amount frozen from that account.
+      Amount frozen from that source, in cents.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -98,15 +104,15 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   `true` when the response was returned from a previous request with the same `transaction_id`.
 </ResponseField>
 
-Returns `400` with `insufficient balance` if the user does not have enough available credits.
+Returns `400` with `insufficient balance` if the customer wallet does not have enough available funds.
 
-If `credit_types` is provided during `freeze`, and the selected wallet categories do not have enough credits, the error message becomes `insufficient balance in selected credit_types`.
+If `credit_types` is provided during `freeze`, and the selected wallet categories do not have enough funds, the error message becomes `insufficient balance in selected credit_types`.
 
 </Step>
 
 <Step title="Consume">
 
-Settle the actual cost after the task finishes. Any unused credits are returned automatically.
+Settle the actual cost after the task finishes. Any unused funds are returned automatically.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/consume \
@@ -118,7 +124,7 @@ curl -X POST https://api.velobase.io/v1/billing/consume \
   }'
 ```
 
-Example: freeze `100`, finish with an actual cost of `73`, and the remaining `27` is automatically returned.
+Example: freeze `100` cents, finish with an actual cost of `73` cents, and the remaining `27` cents is automatically returned.
 
 **Consume Parameters**
 
@@ -127,7 +133,7 @@ Example: freeze `100`, finish with an actual cost of `73`, and the remaining `27
 </ParamField>
 
 <ParamField path="body.actual_amount" type="number">
-  Actual credits to consume. If less than the frozen amount, the remainder is returned. Defaults to the full frozen amount if omitted.
+  Actual amount to consume, in cents. If less than the frozen amount, the remainder is returned. Defaults to the full frozen amount if omitted.
 </ParamField>
 
 **Consume Response**
@@ -150,25 +156,25 @@ Example: freeze `100`, finish with an actual cost of `73`, and the remaining `27
 ```
 
 <ResponseField name="consumed_amount" type="number">
-  Credits permanently consumed by this operation.
+  Amount permanently consumed by this operation, in cents.
 </ResponseField>
 
 <ResponseField name="returned_amount" type="number">
-  Unused frozen credits automatically returned to the available balance (`frozen_amount - actual_amount`).
+  Unused frozen funds automatically returned to the available wallet balance, in cents (`frozen_amount - actual_amount`).
 </ResponseField>
 
 <ResponseField name="consume_details" type="array">
-  Breakdown of which credit accounts were consumed.
+  Breakdown of which wallet sources were consumed.
 
   <Expandable title="consume_details properties">
     <ResponseField name="account_id" type="string">
-      Underlying credit account ID that was consumed.
+      Underlying wallet source ID that was consumed.
     </ResponseField>
     <ResponseField name="credit_type" type="string">
       Wallet category that was consumed.
     </ResponseField>
     <ResponseField name="amount" type="number">
-      Amount consumed from that account.
+      Amount consumed from that source, in cents.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -185,7 +191,7 @@ Example: freeze `100`, finish with an actual cost of `73`, and the remaining `27
 
 <Step title="Unfreeze (Cancel)">
 
-Release frozen credits without consuming. Use when the task is cancelled.
+Release frozen funds without consuming. Use when the task is cancelled.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/billing/unfreeze \
@@ -215,21 +221,21 @@ curl -X POST https://api.velobase.io/v1/billing/unfreeze \
 ```
 
 <ResponseField name="unfrozen_amount" type="number">
-  Total credits returned to the available balance.
+  Total amount returned to the available wallet balance, in cents.
 </ResponseField>
 
 <ResponseField name="unfreeze_details" type="array">
-  Breakdown of which credit accounts were unfrozen.
+  Breakdown of which wallet sources were unfrozen.
 
   <Expandable title="unfreeze_details properties">
     <ResponseField name="account_id" type="string">
-      Underlying credit account ID that was unfrozen.
+      Underlying wallet source ID that was unfrozen.
     </ResponseField>
     <ResponseField name="credit_type" type="string">
       Wallet category that was unfrozen.
     </ResponseField>
     <ResponseField name="amount" type="number">
-      Amount released from that account.
+      Amount released from that source, in cents.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -248,12 +254,12 @@ curl -X POST https://api.velobase.io/v1/billing/unfreeze \
 
 ## Wallet Categories and Consumption Order
 
-- The system automatically freezes and consumes from all available credits.
+- The system automatically freezes and consumes from all available wallet funds.
 - If `credit_types` is provided during `freeze`, only those wallet categories are eligible for this transaction.
 - Callers do not choose which wallet category to use.
-- Credits that expire sooner are handled first; if expiry is the same, older accounts are handled first.
-- Only credits that are currently active participate in freeze and consume. Credits that have not started yet or have already expired are ignored.
-- Use the customer balance API to inspect remaining credits by `credit_type`.
+- Funds that expire sooner are handled first. If expiry is the same, older sources are handled first.
+- Only funds that are currently active participate in freeze and consume. Funds that have not started yet or have already expired are ignored.
+- Use the customer API to inspect remaining funds per wallet source.
 
 ## Idempotency
 
@@ -261,17 +267,50 @@ All three operations are idempotent on `transaction_id`. Duplicate calls return 
 
 ## Verify the Result
 
+Fetch the customer to inspect their wallets:
+
 ```bash
 curl https://api.velobase.io/v1/customers/user_987 \
   -H "Authorization: Bearer your_api_key_here"
 ```
 
-After each step, check:
+```json
+{
+  "id": "user_987",
+  "name": "Ada Lovelace",
+  "email": "ada@example.com",
+  "metadata": {},
+  "wallets": {
+    "default": {
+      "total": 1000,
+      "used": 73,
+      "frozen": 0,
+      "available": 927,
+      "sources": [
+        {
+          "source": "deposit",
+          "total": 1000,
+          "used": 73,
+          "frozen": 0,
+          "available": 927,
+          "starts_at": null,
+          "expires_at": null
+        }
+      ]
+    }
+  },
+  "created_at": "2026-04-07T11:00:00.000Z"
+}
+```
 
-- whether `balance.frozen` increases after freeze
-- whether `balance.used` increases after consume
-- whether `balance.available` changes as expected
-- which `accounts[].credit_type` entries were used
+After each step, check the `wallets["default"]` summary:
+
+- whether `frozen` increases after freeze
+- whether `used` increases after consume
+- whether `available` changes as expected
+- which wallet `sources[]` were used
+
+All wallet amounts are in cents (1 USD = 100 cents = 1,000,000 credits).
 
 ## Error Format
 

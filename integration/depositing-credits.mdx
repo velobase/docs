@@ -1,12 +1,25 @@
 ---
-title: "Depositing Credits"
-sidebarTitle: "Depositing Credits"
-description: "Add credits to a user and group them by wallet category."
+title: "Depositing credits"
+sidebarTitle: "Depositing credits"
+description: "Top up a customer's wallet and group funds by wallet category."
 ---
 
-Use `POST /v1/customers/deposit` to add credits to a user.
+Use `POST /v1/customers/deposit` to add funds to a customer's wallet.
 
-## Minimal Example
+<Note>
+  Velobase is an AI gateway first: point your OpenAI or Anthropic SDK at
+  `https://api.velobase.io/v1` and every model call is billed to a customer's
+  wallet via the `X-Velobase-Customer` header. Deposits fund that wallet. The
+  same wallet also backs the billing primitives (freeze, consume, deduct) for
+  work you price yourself. See [Quickstart](/quickstart) for the
+  gateway flow.
+</Note>
+
+## Minimal example
+
+Amounts use explicit unit fields: `amount_usd`, `amount_cents`, or
+`amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. Prefer
+`amount_usd`.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -14,17 +27,18 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount": 1000
+    "amount_usd": 5
   }'
 ```
 
-If the user does not exist, it will be created automatically.
+If the customer does not exist, it is created automatically.
 
 ## Using the SDK
 
 <CodeGroup>
 
 ```python Python
+# pip install "velobase-billing>=0.2.1"
 from velobase_billing import Velobase
 
 vb = Velobase(api_key="your_api_key_here")
@@ -34,6 +48,7 @@ vb.customers.deposit(customer_id="user_987", amount_usd=5)
 ```
 
 ```typescript Node
+// npm i @velobaseai/billing@^1.1.1
 import { Velobase } from "@velobaseai/billing";
 
 const vb = new Velobase({ apiKey: "your_api_key_here" });
@@ -47,9 +62,9 @@ Both deposits are idempotent on an idempotency key, and create the customer on
 first use. See the [Python](/integration/sdk-python) and
 [JavaScript](/integration/sdk-javascript) SDK references for the full surface.
 
-## Add a Wallet Category
+## Add a wallet category
 
-Use `credit_type` when you want this deposit to show up under a specific wallet category in the console and balance breakdown.
+Use `credit_type` when you want this deposit to show up under a specific wallet category in the console and wallet breakdown.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -57,7 +72,7 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount": 500,
+    "amount_usd": 2.5,
     "credit_type": "promo_campaign_2026",
     "idempotency_key": "deposit_user_987_promo_2026"
   }'
@@ -65,9 +80,9 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
 
 Use any string for `credit_type`, for example: `default`, `promo_campaign_2026`, `membership_gold`.
 
-## Add a Validity Period
+## Add a validity period
 
-Use `starts_at` and `expires_at` when these credits should only be usable during a specific time window.
+Use `starts_at` and `expires_at` when these funds should only be usable during a specific time window.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -75,7 +90,7 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount": 200,
+    "amount_usd": 1,
     "credit_type": "summer_campaign_2026",
     "starts_at": "2026-06-01T00:00:00.000Z",
     "expires_at": "2026-06-30T23:59:59.999Z",
@@ -83,28 +98,41 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   }'
 ```
 
-Before `starts_at` the credits are inactive. After `expires_at` they are no longer counted.
+Before `starts_at` the funds are inactive. After `expires_at` they are no longer counted.
 
-## Parameter Reference
+## Parameter reference
 
 <ParamField path="body.customer_id" type="string" required>
   Your internal ID for the customer. If the customer does not exist, it is created automatically.
 </ParamField>
 
-<ParamField path="body.amount" type="number" required>
-  Number of credits to add. Must be greater than 0.
+<ParamField path="body.amount_usd" type="number">
+  Amount to add, in US dollars. Must be greater than 0. Provide exactly one amount field.
 </ParamField>
+
+<ParamField path="body.amount_cents" type="number">
+  Amount to add, in cents (1 USD = 100 cents).
+</ParamField>
+
+<ParamField path="body.amount_credits" type="number">
+  Amount to add, in credits (1 USD = 1,000,000 credits).
+</ParamField>
+
+<Note>
+  A bare `amount` is legacy and is interpreted as cents, not credits. Prefer
+  the explicit `amount_usd`, `amount_cents`, or `amount_credits` fields.
+</Note>
 
 <ParamField path="body.credit_type" type="string" default="default">
   Wallet category for this deposit. Use any string, such as `default`, `promo_campaign_2026`, or `membership_gold`. Defaults to `default`.
 </ParamField>
 
 <ParamField path="body.starts_at" type="string">
-  ISO 8601 datetime. Before this time, the deposited credits do not count toward the available balance.
+  ISO 8601 datetime. Before this time, the deposited funds do not count toward the available wallet balance.
 </ParamField>
 
 <ParamField path="body.expires_at" type="string">
-  ISO 8601 datetime. After this time, the deposited credits no longer count toward the available balance. Must be later than `starts_at`.
+  ISO 8601 datetime. After this time, the deposited funds no longer count toward the available wallet balance. Must be later than `starts_at`.
 </ParamField>
 
 <ParamField path="body.idempotency_key" type="string">
@@ -127,15 +155,15 @@ Before `starts_at` the credits are inactive. After `expires_at` they are no long
   A human-readable note for this deposit.
 </ParamField>
 
-## Deposit Response
+## Deposit response
 
 ```json
 {
   "customer_id": "user_987",
   "account_id": "...",
   "credit_type": "summer_campaign_2026",
-  "total_amount": 1000,
-  "added_amount": 1000,
+  "total_amount": 1000000,
+  "added_amount": 1000000,
   "starts_at": "2026-06-01T00:00:00.000Z",
   "expires_at": "2026-06-30T23:59:59.999Z",
   "record_id": "...",
@@ -148,7 +176,7 @@ Before `starts_at` the credits are inactive. After `expires_at` they are no long
 </ResponseField>
 
 <ResponseField name="account_id" type="string">
-  The underlying credit account created by this deposit.
+  The underlying wallet source created by this deposit.
 </ResponseField>
 
 <ResponseField name="credit_type" type="string">
@@ -156,19 +184,19 @@ Before `starts_at` the credits are inactive. After `expires_at` they are no long
 </ResponseField>
 
 <ResponseField name="total_amount" type="number">
-  Total amount on this credit account record. Not the customer's overall balance.
+  Total amount, in credits, on this wallet source record. Not the customer's overall wallet balance.
 </ResponseField>
 
 <ResponseField name="added_amount" type="number">
-  Amount added by this specific request.
+  Amount, in credits, added by this specific request.
 </ResponseField>
 
 <ResponseField name="starts_at" type="string">
-  Start time of this credit account's validity window.
+  Start time of this wallet source's validity window.
 </ResponseField>
 
 <ResponseField name="expires_at" type="string">
-  Expiry time of this credit account's validity window.
+  Expiry time of this wallet source's validity window.
 </ResponseField>
 
 <ResponseField name="record_id" type="string">
@@ -179,7 +207,11 @@ Before `starts_at` the credits are inactive. After `expires_at` they are no long
   `true` when the response was returned from a previous request with the same `idempotency_key`.
 </ResponseField>
 
-## Query Balance and Wallet Categories
+## Query wallet and categories
+
+Fetch the customer to see their wallets. `GET /v1/customers/{id}` returns a
+`wallets` map keyed by wallet category, each with its own totals and the
+`sources` (deposits) that fund it.
 
 ```bash
 curl https://api.velobase.io/v1/customers/user_987 \
@@ -191,59 +223,72 @@ curl https://api.velobase.io/v1/customers/user_987 \
   "id": "user_987",
   "name": "Alice",
   "email": "alice@example.com",
-  "balance": {
-    "total": 1500,
-    "used": 0,
-    "frozen": 0,
-    "available": 1500
-  },
-  "accounts": [
-    {
-      "account_type": "CREDIT",
-      "credit_type": "default",
-      "total": 1000,
+  "metadata": {},
+  "wallets": {
+    "default": {
+      "total": 1000000,
       "used": 0,
       "frozen": 0,
-      "available": 1000,
-      "starts_at": null,
-      "expires_at": null
+      "available": 1000000,
+      "sources": [
+        {
+          "source": "default",
+          "total": 1000000,
+          "used": 0,
+          "frozen": 0,
+          "available": 1000000,
+          "starts_at": null,
+          "expires_at": null
+        }
+      ]
     },
-    {
-      "account_type": "CREDIT",
-      "credit_type": "promo_campaign_2026",
-      "total": 500,
+    "promo_campaign_2026": {
+      "total": 500000,
       "used": 0,
       "frozen": 0,
-      "available": 500,
-      "starts_at": null,
-      "expires_at": null
+      "available": 500000,
+      "sources": [
+        {
+          "source": "promo_campaign_2026",
+          "total": 500000,
+          "used": 0,
+          "frozen": 0,
+          "available": 500000,
+          "starts_at": null,
+          "expires_at": null
+        }
+      ]
     }
-  ],
+  },
   "created_at": "2026-04-07T12:00:00.000Z"
 }
 ```
 
-<ResponseField name="balance.total" type="number">
-  Sum of all active credit accounts.
+<ResponseField name="wallets" type="object">
+  Map of wallet category to that wallet's balance. The key is the `credit_type` used at deposit time.
 </ResponseField>
 
-<ResponseField name="balance.used" type="number">
-  Credits already consumed across all accounts.
+<ResponseField name="wallets.{category}.total" type="number">
+  Total credits in this wallet across its active sources.
 </ResponseField>
 
-<ResponseField name="balance.frozen" type="number">
+<ResponseField name="wallets.{category}.used" type="number">
+  Credits already consumed from this wallet.
+</ResponseField>
+
+<ResponseField name="wallets.{category}.frozen" type="number">
   Credits currently reserved by in-progress staged deduction flows.
 </ResponseField>
 
-<ResponseField name="balance.available" type="number">
-  Credits available to spend: `total - used - frozen`.
+<ResponseField name="wallets.{category}.available" type="number">
+  Credits available to spend in this wallet: `total - used - frozen`.
 </ResponseField>
 
-<ResponseField name="accounts" type="array">
-  Per-account balance breakdown. Each entry corresponds to one deposit's credit account, identified by its `credit_type`.
+<ResponseField name="wallets.{category}.sources" type="array">
+  Per-source breakdown. Each entry corresponds to one deposit, with its own validity window via `starts_at` and `expires_at`.
 </ResponseField>
 
-## Error Format
+## Error format
 
 All API errors return an HTTP error status and a structured `error` object:
 

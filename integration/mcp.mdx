@@ -6,7 +6,11 @@ description: "Configure your AI assistant to use Velobase via the Model Context 
 
 Velobase provides an official **Model Context Protocol (MCP)** server (`@velobaseai/velobase-sdk-mcp`).
 
-By installing this server in your AI coding assistant (Cursor, Windsurf, Cline, etc.), the AI can access our latest Python and JavaScript SDK documentation and automatically write integration code.
+By installing this server in your AI coding assistant (Cursor, Windsurf, Cline, etc.), the AI can access our latest Python and JavaScript SDK documentation and automatically write integration code, both for the model gateway (point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and bill each call to an end customer's wallet) and for the billing primitives you use to price your own work (freeze, consume, deduct).
+
+<Note>
+The gateway routes model calls and meters them against a per customer wallet using the `X-Velobase-Customer: <user-id>` header. The billing primitives (`/v1/billing/freeze`, `/v1/billing/consume`, `/v1/billing/deduct`) cover work you price yourself. The MCP server can generate code for both.
+</Note>
 
 ---
 
@@ -63,7 +67,12 @@ If you prefer to run the MCP server locally via npx:
 
 Once installed, you can prompt your AI assistant like this:
 
-- _"I need to integrate Velobase billing in Python. Check how to install the SDK and write a script to consume 5 credits."_
-- _"Use the Velobase MCP to find the javascript SDK instructions for freezing credits."_
+- _"I need to route my Anthropic SDK calls through the Velobase gateway in Python so each call bills an end customer's wallet. Check how to install the SDK and write the setup."_
+- _"Use the Velobase MCP to find the JavaScript SDK instructions for freezing and consuming funds with a transaction_id."_
+- _"Integrate Velobase billing in Python. Check how to install the SDK and write a script to deduct 0.05 USD (amount_usd: 0.05) from a customer's wallet."_
 
 The AI will use the `sdk_download_and_usage` tool to fetch the required information and generate the code.
+
+<Note>
+Amount fields are explicit: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. Prefer `amount_usd`. The MCP server pins the current SDK versions when it writes install steps: `pip install "velobase-billing>=0.2.1"` for Python and `npm i @velobaseai/billing@^1.1.1` for JavaScript.
+</Note>

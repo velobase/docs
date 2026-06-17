@@ -8,7 +8,7 @@ icon: "house"
 
 **Velobase is an AI gateway that meters and bills every model call to your end-customers.**
 
-Point your OpenAI- or Anthropic-style SDK at Velobase, add one header for who to bill, and every model call is metered against that customer's wallet (cost returned on the response). It is the per-customer balance, ledger, and rate-limit layer OpenRouter leaves you to build. It is also a high-performance billing ledger, so you can meter work you price yourself against the same wallets.
+Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add one header for who to bill (`X-Velobase-Customer: <user-id>`), and every model call is metered against that customer's wallet. The cost comes back on the response headers (`x-velobase-cost-cents`, `x-velobase-cost-credits`, `x-velobase-balance-credits`). It is the per-customer wallet, ledger, and rate-limit layer OpenRouter leaves you to build. It is also a high-performance billing ledger, so you can meter work you price yourself against the same wallets.
 
 <Tip>
   **Using an AI coding agent?** Install the [MCP server](/integration/mcp) to let your agent write the integration for you, no manual setup needed.
@@ -18,51 +18,56 @@ Point your OpenAI- or Anthropic-style SDK at Velobase, add one header for who to
 
 <Steps>
   <Step title="Get an API key">
-    Sign in at [velobase.io/dashboard](https://velobase.io/dashboard) and generate an API key under **Project Settings → API Keys**.
+    Sign in at [velobase.io/dashboard](https://velobase.io/dashboard) and generate a key in your project's **Keys** section. A project key (`vb_live_`) runs server-side and names the customer to bill via the `X-Velobase-Customer` header; a customer-scoped key (`vb_customer_`) carries its own customer binding.
   </Step>
   <Step title="Fund a customer">
-    Call `POST /v1/customers/deposit` with a `customer_id` and an amount. Velobase creates the customer automatically if they don't exist yet.
+    Call `POST /v1/customers/deposit` with a `customer_id` and `amount_usd` (1 USD = 100 cents = 1,000,000 credits). Velobase creates the customer automatically if they don't exist yet.
   </Step>
   <Step title="Make a billed model call">
-    Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and send the `X-Velobase-Customer` header. The call is billed to that customer and the cost comes back on the response headers. For work you price yourself, use direct deduction or the freeze then consume flow.
+    Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1`, call `POST /v1/chat/completions` or `POST /v1/messages`, and send the `X-Velobase-Customer` header. The call is billed to that customer's wallet and the cost comes back on the response headers (`x-velobase-cost-cents`, `x-velobase-cost-credits`). For work you price yourself, use direct deduction or the freeze then consume flow.
   </Step>
   <Step title="Track every transaction">
-    Every operation is recorded in an immutable ledger. Query balances and reconcile usage in real time.
+    Every operation is recorded in an immutable ledger. Read a customer's wallets with `GET /v1/customers/{id}` and reconcile usage in real time with `GET /v1/usage`.
   </Step>
 </Steps>
 
 <Card title="Get started in 5 minutes" icon="rocket" href="/quickstart" horizontal>
-  Make your first API call, deposit credits and charge a customer end to end.
+  Make your first model call, fund a customer wallet, and bill a request end to end.
 </Card>
 
 ## Key features
 
 <Columns cols={2}>
-  <Card title="Credit Deposits" icon="coins" href="/integration/depositing-credits">
-    Wallet categories, validity windows, and auto-provisioning for customer balances.
+  <Card title="Model gateway" icon="network-wired" href="/quickstart">
+    Point your OpenAI or Anthropic SDK at Velobase and bill every model call to a customer wallet. Live models include `deepseek/deepseek-v4-pro` (streaming) and the `anthropic/claude-*` family (Bedrock, non-streaming), with more available via upstreams.
   </Card>
-  <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
-    Charge immediately when the cost is known upfront, image generation, fixed-price APIs.
+  <Card title="Customer deposits" icon="coins" href="/integration/depositing-credits">
+    Wallet categories, validity windows, and auto-provisioning for customer wallets.
   </Card>
-  <Card title="Staged Deduction" icon="layer-group" href="/integration/staged-deduction">
-    Freeze a budget, then settle the actual cost, LLM inference, async tasks.
+  <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">
+    Charge immediately when the cost is known upfront: image generation, fixed-price APIs.
   </Card>
-  <Card title="Immutable Ledger" icon="scroll" href="/dashboard/customers-ledger">
-    Every balance change is recorded permanently with full audit trail.
+  <Card title="Staged deduction" icon="layer-group" href="/integration/staged-deduction">
+    Freeze a budget, then settle the actual cost: LLM inference, async tasks.
+  </Card>
+  <Card title="Immutable ledger" icon="scroll" href="/dashboard/customers-ledger">
+    Every wallet change is recorded permanently with a full audit trail.
   </Card>
 </Columns>
 
-## Billing flows
+## Billing flows for work you price yourself
+
+Beyond the model gateway, the same wallets back a transaction-based ledger for anything you price yourself. Amounts use explicit unit fields (`amount_usd`, `amount_cents`, `amount_credits`); 1 USD = 100 cents = 1,000,000 credits.
 
 <Columns cols={3}>
-  <Card title="Direct Deduction" icon="bolt" href="/integration/direct-deduction">
-    Fixed cost known upfront
+  <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">
+    Fixed cost known upfront via `POST /v1/billing/deduct`
   </Card>
-  <Card title="Freeze → Consume" icon="layer-group" href="/integration/staged-deduction">
-    Variable cost settled after
+  <Card title="Freeze then consume" icon="layer-group" href="/integration/staged-deduction">
+    Variable cost settled after via `POST /v1/billing/freeze` then `/v1/billing/consume`
   </Card>
   <Card title="Deposits" icon="wallet" href="/integration/depositing-credits">
-    Top up customer wallets
+    Top up customer wallets via `POST /v1/customers/deposit`
   </Card>
 </Columns>
 
@@ -72,14 +77,14 @@ Point your OpenAI- or Anthropic-style SDK at Velobase, add one header for who to
   <Accordion title="Why not just use Stripe metered billing?">
     Stripe is built for subscription and invoice workflows. AI workloads need sub-second credit operations with atomic freeze-and-settle semantics. Velobase handles thousands of concurrent operations per second with zero race conditions and no negative balances.
   </Accordion>
-  <Accordion title="How does freeze-consume prevent negative balances?">
-    When you freeze credits, Velobase atomically reserves them from the available balance. No other request can spend those credits while they're frozen. After the task completes, settle the actual cost and any unused credits are returned automatically.
+  <Accordion title="How does freeze then consume prevent negative balances?">
+    When you freeze funds, Velobase atomically reserves them from the wallet's available balance. No other request can spend those funds while they're frozen. After the task completes, settle the actual cost and any unused amount is returned automatically.
   </Accordion>
   <Accordion title="What happens if my API call fails mid-request?">
     Every billing operation is idempotent. Retry with the same `transaction_id` and Velobase returns the original result without double-charging.
   </Accordion>
   <Accordion title="Can I use Velobase for non-AI billing?">
-    Yes. The direct deduction flow works for any fixed-price operation, game currencies, API rate credits, marketplace points, or anything you model as credits.
+    Yes. The direct deduction flow works for any fixed-price operation: game currencies, API rate limits, marketplace points, or anything you bill against a customer wallet.
   </Accordion>
 </AccordionGroup>
 
@@ -96,7 +101,7 @@ Point your OpenAI- or Anthropic-style SDK at Velobase, add one header for who to
     AI coding agent integration
   </Card>
   <Card title="Dashboard" icon="chart-bar" href="/dashboard/projects">
-    Manage customers, keys, and ledger
+    Overview, Models, Customers, Keys, Usage, Settings
   </Card>
   <Card title="Idempotency" icon="shield-check" href="/advanced/idempotency">
     Prevent double charges

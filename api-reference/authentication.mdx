@@ -4,7 +4,9 @@ sidebarTitle: "Authentication"
 description: "Authenticate your API requests securely."
 ---
 
-Velobase uses API keys to authenticate requests. You can create and manage API keys from your dashboard under the **API Keys** section of any project.
+Velobase is an AI gateway first: point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and bill every model call to an end-customer's wallet. It is also a billing ledger (freeze, consume, deduct) for work you price yourself. Both surfaces share the same API keys.
+
+Velobase uses API keys to authenticate requests. You can create and manage API keys from your dashboard under the **Keys** section of any project.
 
 ## Bearer Token
 
@@ -16,14 +18,42 @@ Authorization: Bearer <your_api_key_here>
 
 ### Example Request
 
+To verify a key is working, call an authenticated endpoint such as `GET /v1/models`. (The unauthenticated `/health` endpoint does not require a key.)
+
 ```bash
-curl https://api.velobase.io/v1/health \
-  -H "Authorization: Bearer vb_1234567890abcdef"
+curl https://api.velobase.io/v1/models \
+  -H "Authorization: Bearer vb_live_1234567890abcdef"
 ```
+
+## Key Types
+
+Velobase issues two kinds of API keys, distinguished by their prefix:
+
+- **Project key (`vb_live_`)**: A server-side key for your backend. It is not bound to any single customer, so billable requests must name the customer to charge with the `X-Velobase-Customer: <user-id>` header.
+- **Customer-scoped key (`vb_customer_`)**: A key bound to one of your customers. It carries its own customer binding, so no header is needed. These keys can be restricted to an `allowedModels` whitelist and given an `expiresAt`.
+
+```bash
+# Project key: pass the customer to bill via header
+curl https://api.velobase.io/v1/chat/completions \
+  -H "Authorization: Bearer vb_live_1234567890abcdef" \
+  -H "X-Velobase-Customer: user_42" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "deepseek/deepseek-v4-pro", "messages": [{"role": "user", "content": "Hello"}]}'
+
+# Customer-scoped key: customer is implied, no header needed
+curl https://api.velobase.io/v1/chat/completions \
+  -H "Authorization: Bearer vb_customer_1234567890abcdef" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "deepseek/deepseek-v4-pro", "messages": [{"role": "user", "content": "Hello"}]}'
+```
+
+<Note>
+Non-billable endpoints like `GET /v1/models` do not require a customer. Billable endpoints (such as `/v1/chat/completions` and `/v1/messages`) need a resolvable customer, from the header or the key binding, or they return a `400`.
+</Note>
 
 ## Key Scoping
 
-- **Project Isolation**: Every API key is scoped to a specific project. An API key created in Project A cannot access customers or ledgers in Project B.
+- **Project Isolation**: Every API key is scoped to a specific project. An API key created in Project A cannot access customers in Project B.
 - **Roll and Revoke**: You can revoke an API key at any time from the dashboard if you suspect it has been compromised. Requests using a revoked key will immediately start failing with an `api_key_revoked` error.
 
 ## Authentication Errors
