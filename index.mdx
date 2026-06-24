@@ -21,7 +21,7 @@ Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add o
     Sign in at [velobase.io/dashboard](https://velobase.io/dashboard) and generate a key in your project's **Keys** section. A project key (`vb_live_`) runs server-side and names the customer to bill via the `X-Velobase-Customer` header; a customer-scoped key (`vb_customer_`) carries its own customer binding.
   </Step>
   <Step title="Fund a customer">
-    Call `POST /v1/customers/deposit` with a `customer_id` and `amount_usd` (1 USD = 100 cents = 1,000,000 credits). Velobase creates the customer automatically if they don't exist yet.
+    Call `POST /v1/customers/deposit` with a `customer_id` and an integer credit `amount`. Velobase creates the customer automatically if they don't exist yet.
   </Step>
   <Step title="Make a billed model call">
     Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1`, call `POST /v1/chat/completions` or `POST /v1/messages`, and send the `X-Velobase-Customer` header. The call is billed to that customer's wallet and the cost comes back on the response headers (`x-velobase-cost-cents`, `x-velobase-cost-credits`). For work you price yourself, use direct deduction or the freeze then consume flow.
@@ -57,7 +57,7 @@ Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add o
 
 ## Billing flows for work you price yourself
 
-Beyond the model gateway, the same wallets back a transaction-based ledger for anything you price yourself. Amounts use explicit unit fields (`amount_usd`, `amount_cents`, `amount_credits`); 1 USD = 100 cents = 1,000,000 credits.
+Beyond the model gateway, the same wallets back a transaction-based ledger for anything you price yourself. Customer deposits use integer credits via `amount`; other billing primitives may use explicit unit fields such as `amount_usd`, `amount_cents`, or `amount_credits`. 1 USD = 100 cents = 1,000,000 credits.
 
 <Columns cols={3}>
   <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">

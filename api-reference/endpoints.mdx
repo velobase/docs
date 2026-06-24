@@ -11,7 +11,10 @@ This page covers the REST surface for managing customers and their wallets, plus
 Base URL: `https://api.velobase.io`
 
 <Note>
-  Amount fields are explicit about their unit: `amount_usd`, `amount_cents`, and `amount_credits`. 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and means cents. Prefer `amount_usd`.
+  Customer wallet deposit uses `amount` as integer credits. Other billing
+  primitives that price work yourself may expose explicit fiat/credit unit
+  fields such as `amount_usd`, `amount_cents`, or `amount_credits`. 1 USD =
+  100 cents = 1,000,000 credits.
 </Note>
 
 ## Model gateway
@@ -95,11 +98,11 @@ The Velobase billing SDKs wrap the customer and wallet endpoints below. The gate
 <CodeGroup>
 
 ```bash Python
-pip install "velobase-billing>=0.2.1"
+pip install "velobase-billing>=0.2.2"
 ```
 
 ```bash JavaScript
-npm i @velobaseai/billing@^1.1.1
+npm i @velobaseai/billing@^1.1.2
 ```
 
 </CodeGroup>
@@ -238,22 +241,18 @@ These endpoints fund and settle a customer's wallet directly. Use them for work 
 
 ### Deposit to a wallet
 
-Add funds to a customer's wallet. If the customer does not exist yet, Velobase automatically creates them using the `name` and `email` fields you provide.
+Add integer credits to a customer's wallet. If the customer does not exist yet, Velobase automatically creates them using the `name` and `email` fields you provide.
 
 **`POST /v1/customers/deposit`**
-
-<Note>
-  You can also scope the deposit by path: `POST /v1/customers/:customer_id/deposit`.
-</Note>
 
 #### Request parameters
 
 <ParamField body="customer_id" type="string" required>
-  The unique identifier for this customer in your system. Omit this when using the `:customer_id` path form.
+  The unique identifier for this customer in your system.
 </ParamField>
 
-<ParamField body="amount_usd" type="number" required>
-  Amount to deposit, in US dollars. You may instead send `amount_cents` or `amount_credits` (1 USD = 100 cents = 1,000,000 credits). A bare `amount` is legacy and is interpreted as cents.
+<ParamField body="amount" type="number" required>
+  Positive integer credits to deposit.
 </ParamField>
 
 <ParamField body="idempotency_key" type="string" required>
@@ -330,7 +329,7 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount_usd": 10,
+    "amount": 10000000,
     "idempotency_key": "dep_unique_001"
   }'
 ```
