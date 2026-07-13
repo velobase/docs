@@ -30,9 +30,11 @@ Clicking on a customer reveals their wallet details. A single customer can hold 
 
 | Wallet | Source | Expiry | Total | Available | Frozen |
 | --- | --- | --- | --- | --- | --- |
-| `default` | deposit | Never expires | 1,000 | 1,000 | 0 |
-| `default` | promo_campaign_2026 | Dec 31, 2026 | 500 | 400 | 100 |
-| **Total** | | | **1,500** | **1,400** | **100** |
+| `credits` | deposit | Never expires | 10,000,000 | 10,000,000 | 0 |
+| `credits` | promo_campaign_2026 | Dec 31, 2026 | 5,000,000 | 4,000,000 | 1,000,000 |
+| **Total** | | | **15,000,000** | **14,000,000** | **1,000,000** |
+
+Amounts are integer credits: 1 USD = 1,000,000 credits, so the totals above are $15.00 with $1.00 frozen.
 
 This separation is powerful for promotional campaigns, refunds, or specific use cases:
 
@@ -106,12 +108,12 @@ When the customer was first created.
 ```
 
 <Note>
-Wallet amounts are in **credits**. Amount fields elsewhere in the API are explicit: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and means cents. Prefer `amount_usd` when you can.
+All amounts are in **credits**: 1 USD = 1,000,000 credits. API amount fields (`amount`, `actual_amount`) are positive integer credits. Unit-suffixed fields such as `amount_usd` or `amount_cents` are not accepted.
 </Note>
 
 ## Topping up a wallet
 
-Most wallets are funded when your end users pay you and you call deposit. Send `POST /v1/customers/deposit` (or `POST /v1/customers/{id}/deposit`) with an explicit amount field such as `amount_usd`. There is no `/v1/billing/deposit` endpoint.
+Most wallets are funded when your end users pay you and you call deposit. Send `POST /v1/customers/deposit` with `amount` as integer credits. There is no `/v1/billing/deposit` endpoint.
 
 ## Ledger
 

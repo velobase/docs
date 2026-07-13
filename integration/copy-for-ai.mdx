@@ -24,67 +24,73 @@ billing ledger for work I price myself. Use the reference below; wire up the par
 - Auth header: Authorization: Bearer <key>
   - vb_live_...      project key (server-side). Pick who to bill with header X-Velobase-Customer: <your-user-id>.
   - vb_customer_...  customer-scoped key (carries its own customer; no header needed).
-- Amount units: amount_usd / amount_cents / amount_credits. 1 USD = 100 cents = 1,000,000 credits.
-- Idempotency: pass idempotency_key (or the Idempotency-Key header) on writes; safe to retry, never double-applies.
-- Errors are JSON: { "error": { "type", "message", "request_id" } }.
+- Units: every amount is a positive INTEGER number of credits. 1 credit = 1 micro-USD;
+  1 USD = 1,000,000 credits. Fields like amount_usd / amount_cents / amount_credits are REJECTED.
+- Idempotency: deposits take body idempotency_key; billing primitives are idempotent on
+  transaction_id; gateway calls take an Idempotency-Key header (replay => 409, no double charge).
+- Errors are JSON: { "error": { "message", "type", "code" } }.
 
 # Gateway: model calls, billed to the customer's wallet
-- POST /v1/chat/completions   OpenAI-compatible chat completions. Send X-Velobase-Customer.
-- POST /v1/messages           Anthropic-style endpoint (today returns OpenAI-shaped bodies for OpenAI-route models).
-- GET  /v1/models             List the models your project can route.
-- GET  /v1/usage              Per-call usage rows: cost_cents, upstream_cost_cents, tokens, model, customer_id, transaction_id, status. Supports ?customer_id= and ?limit=.
+- POST /v1/chat/completions   OpenAI-compatible chat completions (streaming supported). Send X-Velobase-Customer.
+- POST /v1/messages           Anthropic-compatible messages (streaming supported).
+- GET  /v1/models             The models MY project configured (public id + price + my upstream key).
+                              There is no platform model list; use ids from this response.
+- GET  /v1/usage              Per-call usage rows. Filters: ?customer_id= &model= &transaction_id= &trace_id= &cursor= &limit=
+- GET  /v1/billing/receipts/{transaction_id}   The billing receipt for one gateway call.
+- Optional request headers: X-Velobase-Wallet (bill a named wallet; default "credits"),
+  X-Velobase-Trace-Id (correlation id, query it back via /v1/usage?trace_id=), Idempotency-Key.
 - Per-call billing comes back on response headers:
-    x-velobase-cost-cents, x-velobase-cost-credits, x-velobase-balance-credits, x-velobase-transaction-id
-- Streaming: OpenAI-route models (e.g. deepseek/deepseek-v4-pro) support it. Claude models route via Bedrock and do NOT support streaming yet (use stream:false for Claude).
-- Available models: deepseek/deepseek-v4-pro (streaming);
-    anthropic/claude-opus-4.5, claude-opus-4.6, claude-opus-4.7, claude-opus-4.8,
-    claude-sonnet-4.6, claude-haiku-4.5 (non-streaming).
+    X-Velobase-Cost-Credits, X-Velobase-Cost-Usd, X-Velobase-Balance-Credits,
+    X-Velobase-Balance-Usd, X-Velobase-Transaction-Id, X-Velobase-Trace-Id
+- Streaming: cost/usage arrives in the FINAL standard frame of the stream
+  (OpenAI: last usage chunk; Anthropic: message_delta).
+- 402 insufficient_balance = customer wallet cannot cover the call (body has required/available credits).
+  402 byok_key_required = the model has no upstream provider key attached (dashboard config, not balance).
 - Example (Python, official OpenAI SDK):
     from openai import OpenAI
     client = OpenAI(api_key="vb_live_...", base_url="https://api.velobase.io/v1",
                     default_headers={"X-Velobase-Customer": "user_123"})
     r = client.chat.completions.with_raw_response.create(
-        model="deepseek/deepseek-v4-pro",
+        model="<id from GET /v1/models>",
         messages=[{"role":"user","content":"Hello"}], max_tokens=256)
-    print(r.parse().choices[0].message.content, r.headers.get("x-velobase-cost-cents"))
+    print(r.parse().choices[0].message.content, r.headers.get("x-velobase-cost-usd"))
 
 # Customers and wallets (control-plane)
-- POST /v1/customers/deposit              body { customer_id, amount_usd }  fund a customer wallet (created on first deposit).
-    also accepts POST /v1/customers/{id}/deposit
+- POST /v1/customers/deposit              body { customer_id, amount, idempotency_key?, wallet?, starts_at?, expires_at?, name?, email?, description? }
+                                          amount = integer credits (5000000 = $5.00). Customer is created on first deposit.
+                                          Default wallet is "credits".
 - GET  /v1/customers/{id}                 -> { id, name, email, metadata,
     wallets: { "<wallet>": { total, used, frozen, available,
       sources: [ { source, total, used, frozen, available, starts_at, expires_at } ] } },
     created_at }
-- GET  /v1/customers/{id}/balance         -> { object:"customer.balance", balance: { totalSummary:{total,used,frozen,available}, accounts:[...] } }
-- GET  /v1/customers/{id}/ledger          -> { items:[ { id, operation_type, amount, wallet, source, transaction_id, business_type, status, created_at } ], has_more, next_cursor }
+- GET  /v1/customers/{id}/balance         -> object-shaped balance summary.
+- GET  /v1/customers/{id}/ledger          transaction history; cursor pagination; filters operation_type / transaction_id.
 
 # Billing primitives: for work YOU price (model calls bill automatically, you do NOT call these for them)
-- POST /v1/billing/deduct     body { customer_id, transaction_id, amount }   charge a known cost now.
-- POST /v1/billing/freeze     body { customer_id, transaction_id, amount }   reserve a budget before a task.
-- POST /v1/billing/consume    body { transaction_id, actual_amount }         settle the actual cost; the remainder is released.
-- POST /v1/billing/unfreeze   body { transaction_id }                        cancel a freeze; release everything.
+- POST /v1/billing/deduct     body { customer_id, transaction_id, amount, wallet?, business_type?, description? }
+                              charge a known cost now (amount in integer credits).
+- POST /v1/billing/freeze     body { customer_id, transaction_id, amount, wallet?, business_type?,
+                              unfreeze_after_seconds?, consume_after_seconds?, description? }
+                              reserve a budget before a task. TTLs auto-release or auto-consume if never settled.
+- POST /v1/billing/consume    body { transaction_id, actual_amount? }   settle the actual cost (credits);
+                              the remainder is released. Omit actual_amount to consume the full frozen amount.
+- POST /v1/billing/unfreeze   body { transaction_id }                   cancel a freeze; release everything.
 
-# SDKs (control-plane only: deposits, balances, freeze/consume). Model calls go through the OpenAI/Anthropic SDK above.
-- Python: pip install "velobase-billing>=0.2.1"
-    from velobase_billing import Velobase
-    vb = Velobase(api_key="vb_live_...")
-    vb.customers.deposit(customer_id="user_123", amount_usd=5)
-    vb.customers.get("user_123").wallets["default"].available
-    vb.customers.ledger("user_123")
-    vb.billing.freeze(customer_id="user_123", transaction_id="job_1", amount=50)
-    vb.billing.consume(transaction_id="job_1", actual_amount=32)
-- JavaScript: npm i @velobaseai/billing@^1.1.1
+# SDK (control-plane only: deposits, balances, ledger, freeze/consume, usage, receipts).
+# Model calls go through the OpenAI/Anthropic SDK above.
+- JavaScript: npm i @velobaseai/billing@^1.2.0
     import { Velobase } from "@velobaseai/billing";
     const vb = new Velobase({ apiKey: "vb_live_..." });
-    await vb.customers.deposit({ customerId: "user_123", amountUsd: 5 });
-
-# Two wallets (how the money works)
-- Customer wallet: your own pricing units, what you charge your end-user. Funded by deposit.
-- Project wallet: real money you prepaid Velobase via Stripe. Official models debit it for platform cost.
-- A model call needs BOTH funded: 402 insufficient_funds = customer wallet empty; 402 project_balance_insufficient = top up the project wallet.
+    await vb.customers.deposit({ customerId: "user_123", amount: 5_000_000 }); // $5.00
+    await vb.billing.freeze({ customerId: "user_123", transactionId: "job_1", amount: 1_000_000 });
+    await vb.billing.consume({ transactionId: "job_1", actualAmount: 730_000 });
+    // also: vb.customers.get / vb.customers.ledger / vb.billing.deduct / vb.billing.unfreeze /
+    //       vb.usage.list / vb.receipts.get, plus GATEWAY_HEADERS and
+    //       parseGatewayInsufficientBalance() for 402 paywalls.
+- Python: no maintained SDK; call the REST endpoints above directly (requests/httpx).
 
 Now build what I ask for next. Default to the OpenAI SDK + X-Velobase-Customer for model calls,
-and the velobase-billing SDK (or POST /v1/customers/deposit) for funding customers.
+and POST /v1/customers/deposit (or the JS SDK) for funding customers.
 ````
 
 ## What to do with it
@@ -96,5 +102,6 @@ Tell the assistant the specific task, for example:
 - "Show each user their remaining balance and a usage history in my dashboard."
 
 For deeper reference see the [OpenAI-compatible gateway](/integration/openai-compatible),
-the [Python](/integration/sdk-python) and [JavaScript](/integration/sdk-javascript) SDKs,
+the [JavaScript SDK](/integration/sdk-javascript), the
+[Python guide](/integration/sdk-python),
 and [depositing credits](/integration/depositing-credits).

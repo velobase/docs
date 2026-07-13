@@ -8,7 +8,7 @@ icon: "house"
 
 **Velobase is an AI gateway that meters and bills every model call to your end-customers.**
 
-Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add one header for who to bill (`X-Velobase-Customer: <user-id>`), and every model call is metered against that customer's wallet. The cost comes back on the response headers (`x-velobase-cost-cents`, `x-velobase-cost-credits`, `x-velobase-balance-credits`). It is the per-customer wallet, ledger, and rate-limit layer OpenRouter leaves you to build. It is also a high-performance billing ledger, so you can meter work you price yourself against the same wallets.
+Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add one header for who to bill (`X-Velobase-Customer: <user-id>`), and every model call is metered against that customer's wallet. The cost comes back on the response headers (`X-Velobase-Cost-Credits`, `X-Velobase-Cost-Usd`, `X-Velobase-Balance-Credits`). It is the per-customer wallet, ledger, and rate-limit layer OpenRouter leaves you to build. It is also a high-performance billing ledger, so you can meter work you price yourself against the same wallets.
 
 <Tip>
   **Using an AI coding agent?** Install the [MCP server](/integration/mcp) to let your agent write the integration for you, no manual setup needed.
@@ -21,10 +21,10 @@ Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add o
     Sign in at [velobase.io/dashboard](https://velobase.io/dashboard) and generate a key in your project's **Keys** section. A project key (`vb_live_`) runs server-side and names the customer to bill via the `X-Velobase-Customer` header; a customer-scoped key (`vb_customer_`) carries its own customer binding.
   </Step>
   <Step title="Fund a customer">
-    Call `POST /v1/customers/deposit` with a `customer_id` and an integer credit `amount`. Velobase creates the customer automatically if they don't exist yet.
+    Call `POST /v1/customers/deposit` with a `customer_id` and an integer credit `amount` (1 USD = 1,000,000 credits). Velobase creates the customer automatically if they don't exist yet.
   </Step>
   <Step title="Make a billed model call">
-    Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1`, call `POST /v1/chat/completions` or `POST /v1/messages`, and send the `X-Velobase-Customer` header. The call is billed to that customer's wallet and the cost comes back on the response headers (`x-velobase-cost-cents`, `x-velobase-cost-credits`). For work you price yourself, use direct deduction or the freeze then consume flow.
+    Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1`, call `POST /v1/chat/completions` or `POST /v1/messages`, and send the `X-Velobase-Customer` header. The call is billed to that customer's wallet and the cost comes back on the response headers (`X-Velobase-Cost-Credits`, `X-Velobase-Cost-Usd`). For work you price yourself, use direct deduction or the freeze then consume flow.
   </Step>
   <Step title="Track every transaction">
     Every operation is recorded in an immutable ledger. Read a customer's wallets with `GET /v1/customers/{id}` and reconcile usage in real time with `GET /v1/usage`.
@@ -39,7 +39,7 @@ Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add o
 
 <Columns cols={2}>
   <Card title="Model gateway" icon="network-wired" href="/quickstart">
-    Point your OpenAI or Anthropic SDK at Velobase and bill every model call to a customer wallet. Live models include `deepseek/deepseek-v4-pro` (streaming) and the `anthropic/claude-*` family (Bedrock, non-streaming), with more available via upstreams.
+    Point your OpenAI or Anthropic SDK at Velobase and bill every model call to a customer wallet. Models are defined per project: your own model ids, your prices, your upstream provider keys. Streaming is supported end to end.
   </Card>
   <Card title="Customer deposits" icon="coins" href="/integration/depositing-credits">
     Wallet categories, validity windows, and auto-provisioning for customer wallets.
@@ -57,7 +57,7 @@ Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, add o
 
 ## Billing flows for work you price yourself
 
-Beyond the model gateway, the same wallets back a transaction-based ledger for anything you price yourself. Customer deposits use integer credits via `amount`; other billing primitives may use explicit unit fields such as `amount_usd`, `amount_cents`, or `amount_credits`. 1 USD = 100 cents = 1,000,000 credits.
+Beyond the model gateway, the same wallets back a transaction-based ledger for anything you price yourself. Every amount field is a positive integer number of credits: 1 credit = 1 micro-USD, so 1 USD = 1,000,000 credits.
 
 <Columns cols={3}>
   <Card title="Direct deduction" icon="bolt" href="/integration/direct-deduction">

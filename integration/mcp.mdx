@@ -69,10 +69,10 @@ Once installed, you can prompt your AI assistant like this:
 
 - _"I need to route my Anthropic SDK calls through the Velobase gateway in Python so each call bills an end customer's wallet. Check how to install the SDK and write the setup."_
 - _"Use the Velobase MCP to find the JavaScript SDK instructions for freezing and consuming funds with a transaction_id."_
-- _"Integrate Velobase billing in Python. Check how to install the SDK and write a script to deduct 0.05 USD (amount_usd: 0.05) from a customer's wallet."_
+- _"Integrate Velobase billing and write a script to deduct 50000 credits ($0.05) from a customer's wallet."_
 
 The AI will use the `sdk_download_and_usage` tool to fetch the required information and generate the code.
 
 <Note>
-Amount fields are explicit: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. Prefer `amount_usd`. The MCP server pins the current SDK versions when it writes install steps: `pip install "velobase-billing>=0.2.1"` for Python and `npm i @velobaseai/billing@^1.1.1` for JavaScript.
+All amounts are positive integer credits: 1 credit = 1 micro-USD, so 1 USD = 1,000,000 credits. Unit-suffixed fields such as `amount_usd` or `amount_cents` are rejected by the API. For JavaScript the MCP server pins the current SDK version when it writes install steps: `npm i @velobaseai/billing@^1.2.0`. From Python, use plain REST calls plus the OpenAI SDK for gateway calls.
 </Note>

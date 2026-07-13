@@ -12,13 +12,13 @@ Point your OpenAI- or Anthropic-style SDK at `https://api.velobase.io/v1`, then 
 
 <AccordionGroup>
   <Accordion title="OpenAI- and Anthropic-compatible gateway" icon="robot">
-    Keep your existing SDK. Change the base URL to `https://api.velobase.io/v1`, add the `X-Velobase-Customer` header, and every model call is billed to that customer. Model-agnostic: route `deepseek/deepseek-v4-pro`, `anthropic/claude-opus-4.8`, and more through one endpoint.
+    Keep your existing SDK. Change the base URL to `https://api.velobase.io/v1`, add the `X-Velobase-Customer` header, and every model call is billed to that customer. Model-agnostic: define your own models in the dashboard (public id, your price, your upstream provider key) and route them all through one endpoint.
   </Accordion>
   <Accordion title="Per-customer wallets and ledger" icon="wallet">
-    Every end-customer has a wallet and an immutable ledger. Fund the wallet, and calls are gated and metered per customer, with the cost returned on each response header (`x-velobase-cost-cents`, `x-velobase-balance-credits`).
+    Every end-customer has a wallet and an immutable ledger. Fund the wallet, and calls are gated and metered per customer, with the cost returned on each response header (`X-Velobase-Cost-Credits`, `X-Velobase-Balance-Credits`).
   </Accordion>
   <Accordion title="Freeze-Consume for self-priced work" icon="layer-group">
-    Freeze an estimated amount before an AI task, then consume the exact amount after. Amounts are explicit (`amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits). Zero risk of negative balances.
+    Freeze an estimated amount before an AI task, then consume the exact amount after. Amounts are positive integer credits (1 USD = 1,000,000 credits). Zero risk of negative balances.
   </Accordion>
   <Accordion title="High concurrency, API first" icon="bolt">
     Thousands of deductions per second without race conditions. Manage everything over REST or the Python and JavaScript SDKs.

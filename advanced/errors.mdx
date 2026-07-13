@@ -46,15 +46,26 @@ Below is a list of common `error.code` values you may encounter, organized by ca
   </Accordion>
 
   <Accordion title="Model gateway: customer resolution and routing">
-    These errors occur on billable model calls (`POST /v1/chat/completions`, `POST /v1/messages`) when Velobase cannot decide which customer to bill, or the request targets a model that is not available to the key. Non-billable endpoints such as `GET /v1/models` do not require a resolvable customer.
+    These errors occur on billable model calls (`POST /v1/chat/completions`, `POST /v1/messages`) when Velobase cannot decide which customer to bill, or the request targets a model that is not available. Non-billable endpoints such as `GET /v1/models` do not require a resolvable customer.
 
     | Code | HTTP | Description |
     |---|---|---|
     | `customer_not_found` | 404 | The `X-Velobase-Customer` value, or the customer bound to a `vb_customer_` key, does not match any customer. |
     | `customer_required` | 400 | A project key (`vb_live_`) was used on a billable endpoint without an `X-Velobase-Customer: <user-id>` header, so there is no customer to bill. |
     | `api_key_expired` | 401 | A customer-scoped key (`vb_customer_`) is past its `expiresAt`. |
-    | `model_not_found` | 404 | The requested model id does not exist. Live model ids include `deepseek/deepseek-v4-pro` (supports streaming) and `anthropic/claude-opus-4.8`, `claude-opus-4.7`, `claude-opus-4.6`, `claude-opus-4.5`, `claude-sonnet-4.6`, `claude-haiku-4.5` (Bedrock, non-streaming). |
+    | `model_not_found` | 404 | The requested model id does not exist in your project. Models are defined per project; call `GET /v1/models` for your project's list. |
+    | `model_inactive` | 404 | The model exists in your project but is currently deactivated. |
     | `model_not_allowed` | 403 | The model is not in the `allowedModels` whitelist for this customer-scoped key. |
+    | `prompt_cache_pricing_required` | 400 | The request used prompt caching, but the model has no cache prices configured. Set cache read/write prices on the model in the dashboard. |
+  </Accordion>
+
+  <Accordion title="Payment required: 402">
+    Two distinct `402` cases on billable gateway calls:
+
+    | Code | Description |
+    |---|---|
+    | `insufficient_balance` | The customer's wallet cannot cover the frozen estimate for this call. The error body includes the required and available credit amounts, so you can drive a paywall or top-up prompt from it. Fix by depositing with `POST /v1/customers/deposit`. |
+    | `byok_key_required` | The model exists, but your project has not attached an upstream provider key to it. This is an operator configuration issue, not a customer balance issue. Fix it in the dashboard's Models section. |
   </Accordion>
 
   <Accordion title="Validation and routing: 400 Bad Request / 404 Not Found">
@@ -64,34 +75,36 @@ Below is a list of common `error.code` values you may encounter, organized by ca
     |---|---|---|
     | `invalid_starts_at` | 400 | The `starts_at` parameter is not a valid ISO 8601 datetime. |
     | `invalid_expires_at` | 400 | The `expires_at` parameter is not a valid ISO 8601 datetime. |
-    | `invalid_credit_types` | 400 | The `credit_types` array is empty or contains invalid strings. |
     | `customer_not_found` | 404 | The requested `customer_id` does not exist. |
   </Accordion>
 
-  <Accordion title="Wallet and deduction: 400 Bad Request">
+  <Accordion title="Wallet and deduction">
     These errors occur when a billing operation cannot be completed because the customer's wallet has no available funds, or the freeze/consume/deduct sequence is invalid. They apply both to per-call model billing and to the billing primitives you use for work you price yourself.
 
-    Amounts are expressed in explicit unit fields: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and means cents.
+    All amounts are positive integer credits (1 USD = 1,000,000 credits). Unit-suffixed fields such as `amount_usd`, `amount_cents`, or `amount_credits` are rejected.
 
     | Code | Description |
     |---|---|
     | `insufficient_balance` | The customer's wallet does not have enough available funds. Top it up with `POST /v1/customers/deposit`. |
-    | `insufficient_balance_in_selected_credit_types` | The wallet has enough funds overall, but not within the specific `credit_types` requested. |
     | `no_consumable_freeze_records` | You attempted to `consume` a transaction that was never frozen or cannot be found. |
     | `freeze_records_already_consumed` | The frozen funds for this `transaction_id` have already been consumed. |
     | `no_unfreezable_records` | You attempted to `unfreeze` a transaction that was never frozen, or has already been consumed or unfrozen. |
     | `actual_amount_exceeds_frozen_amount` | The amount passed to `consume` is greater than the amount originally frozen for this transaction. |
   </Accordion>
 
-  <Accordion title="Concurrency and consistency: 409 Conflict / 500 Internal Server Error">
-    These errors indicate a conflict between two requests or an unexpected internal failure.
-
+  <Accordion title="Concurrency and rate limiting: 409 Conflict / 429 Too Many Requests">
     | Code | HTTP | Description |
     |---|---|---|
     | `transaction_conflict` | 409 | The `transaction_id` was already used for a different customer. |
     | `customer_scope_mismatch` | 409 | An operation referenced a record belonging to a different customer. |
-    | `billing_account_not_found` | 500 | An internal inconsistency where an expected wallet account is missing. |
-    | `server_error` | 500 | An unexpected internal error occurred on the Velobase servers. |
+    | Idempotency replay | 409 | A gateway request replayed a previously used `Idempotency-Key` header. The response says so clearly instead of double-charging; use a fresh key per new request. |
+    | Rate limited | 429 | Too many requests. The response includes a `Retry-After` header; back off and retry after that interval. |
+  </Accordion>
+
+  <Accordion title="Server errors: 500 Internal Server Error">
+    | Code | Description |
+    |---|---|
+    | `billing_account_not_found` | An internal inconsistency where an expected wallet account is missing. |
+    | `server_error` | An unexpected internal error occurred on the Velobase servers. |
   </Accordion>
 </AccordionGroup>
-

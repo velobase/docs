@@ -5,8 +5,9 @@ description: "The @velobaseai/billing package for deposits, balances, and billin
 ---
 
 The `@velobaseai/billing` package wraps the Velobase control-plane: customer
-deposits, balances, ledgers, and the freeze / consume / deduct primitives.
-It ships ESM and CommonJS builds with full TypeScript types.
+deposits, balances, ledgers, the freeze / consume / deduct primitives, usage
+queries, and billing receipts. It ships ESM and CommonJS builds with full
+TypeScript types.
 
 <Note>
 The SDK is for the **billing control-plane**. To make model calls, point the
@@ -17,7 +18,7 @@ The SDK is for the **billing control-plane**. To make model calls, point the
 ## Install
 
 ```bash
-npm install @velobaseai/billing@^1.1.1
+npm install @velobaseai/billing@^1.2.0
 ```
 
 ## Initialize
@@ -32,12 +33,11 @@ const vb = new Velobase({ apiKey: "vb_live_your_project_key" });
 
 ## Deposit credits to a customer
 
-State the amount with an explicit unit. `amountUsd` is the least error-prone.
+`amount` is a positive integer number of credits. 1 credit = 1 micro-USD, so
+1 USD = 1,000,000 credits.
 
 ```typescript
-await vb.customers.deposit({ customerId: "user_123", amountUsd: 5 });
-// or: amountCents: 500  /  amountCredits: 5_000_000
-// 1 USD = 100 cents = 1,000,000 credits
+await vb.customers.deposit({ customerId: "user_123", amount: 5_000_000 }); // $5.00
 ```
 
 Pass `idempotencyKey` so a retry never double-credits (use your payment event
@@ -46,15 +46,10 @@ id in production):
 ```typescript
 await vb.customers.deposit({
   customerId: "user_123",
-  amountUsd: 5,
+  amount: 5_000_000,
   idempotencyKey: "stripe_evt_1a2b3c",
 });
 ```
-
-<Note>
-`amount` (cents) is still accepted for backward compatibility, but prefer the
-explicit `amountUsd` / `amountCents` / `amountCredits` so the unit is clear.
-</Note>
 
 ## Read a balance
 
@@ -62,7 +57,7 @@ explicit `amountUsd` / `amountCents` / `amountCredits` so the unit is clear.
 
 ```typescript
 const cust = await vb.customers.get("user_123");
-const wallet = cust.wallets["default"];
+const wallet = cust.wallets["credits"];
 console.log(wallet.available, "available");
 wallet.sources.forEach((s) => console.log(s.source, s.available));
 ```
@@ -83,16 +78,44 @@ if (page.hasMore) {
 
 For metering work you price yourself (not model calls, which bill
 automatically), use freeze → consume for unknown-cost work, or deduct for
-fixed-cost work.
+fixed-cost work. All amounts are integer credits.
 
 ```typescript
-// Known cost up front:
-await vb.billing.deduct({ customerId: "user_123", transactionId: "img_001", amount: 20 });
+// Known cost up front: 200,000 credits = $0.20
+await vb.billing.deduct({ customerId: "user_123", transactionId: "img_001", amount: 200_000 });
 
 // Unknown cost: reserve a budget, then settle the actual amount.
-await vb.billing.freeze({ customerId: "user_123", transactionId: "job_001", amount: 50 });
-await vb.billing.consume({ transactionId: "job_001", actualAmount: 32 }); // releases the rest
+await vb.billing.freeze({ customerId: "user_123", transactionId: "job_001", amount: 1_000_000 });
+await vb.billing.consume({ transactionId: "job_001", actualAmount: 730_000 }); // releases the rest
 // await vb.billing.unfreeze({ transactionId: "job_001" }); // cancel, release everything
+```
+
+## Usage and receipts
+
+Query per-call gateway usage and fetch the billing receipt for a single call:
+
+```typescript
+const usage = await vb.usage.list({ customerId: "user_123", limit: 20 });
+
+const receipt = await vb.receipts.get("txn_abc123"); // transaction id from a call
+```
+
+## Gateway helpers
+
+The package also exports a `GATEWAY_HEADERS` constant naming the billing
+headers the gateway returns on each billed call
+(`X-Velobase-Cost-Credits`, `X-Velobase-Balance-Credits`, and friends), and
+`parseGatewayInsufficientBalance()`, which parses a gateway `402` response so
+you can drive a paywall from the required / available credit amounts:
+
+```typescript
+import { GATEWAY_HEADERS, parseGatewayInsufficientBalance } from "@velobaseai/billing";
+
+// on a 402 error from the gateway:
+const details = parseGatewayInsufficientBalance(errorBody);
+if (details) {
+  // show your paywall with the required / available credit amounts
+}
 ```
 
 ## Errors

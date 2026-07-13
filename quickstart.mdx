@@ -27,7 +27,7 @@ You can create two kinds of keys:
 
 Add funds to a customer's wallet. If the customer does not exist yet, Velobase creates them automatically.
 
-Amounts use explicit unit fields: `amount_usd`, `amount_cents`, or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. Prefer `amount_usd`.
+`amount` is a positive integer number of credits: 1 credit = 1 micro-USD, so 1 USD = 1,000,000 credits.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -35,15 +35,18 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_123",
-    "amount_usd": 1.00
+    "amount": 1000000,
+    "idempotency_key": "dep_user_123_001"
   }'
 ```
+
+This deposits 1,000,000 credits, which is $1.00.
 
 </Step>
 
 <Step title="Make a model call">
 
-Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and pass `X-Velobase-Customer` to say which wallet to bill. Velobase is model-agnostic: live models include `deepseek/deepseek-v4-pro` (supports streaming) and the `anthropic/claude-*` family such as `anthropic/claude-opus-4.8`, `anthropic/claude-sonnet-4.6`, and `anthropic/claude-haiku-4.5` (served on Bedrock, non-streaming). More are available via upstreams.
+Point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and pass `X-Velobase-Customer` to say which wallet to bill. Models are defined per project: in the dashboard, add a model with a public id, your price, and your own upstream provider key, then call it by that id. `GET /v1/models` lists your project's models.
 
 <CodeGroup>
 
@@ -53,7 +56,7 @@ curl -X POST https://api.velobase.io/v1/chat/completions \
   -H "X-Velobase-Customer: user_123" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "deepseek/deepseek-v4-pro",
+    "model": "your-model-id",
     "messages": [{ "role": "user", "content": "Hello!" }]
   }'
 ```
@@ -67,7 +70,7 @@ client = OpenAI(
 )
 
 resp = client.chat.completions.create(
-    model="deepseek/deepseek-v4-pro",
+    model="your-model-id",
     messages=[{"role": "user", "content": "Hello!"}],
     extra_headers={"X-Velobase-Customer": "user_123"},
 )
@@ -78,12 +81,15 @@ print(resp.choices[0].message.content)
 
 Velobase forwards the request upstream, settles the real token cost against the customer's wallet, and returns per-call billing details in the response headers:
 
-- `x-velobase-cost-cents` and `x-velobase-cost-credits`: what this call cost.
-- `x-velobase-balance-credits`: the wallet balance after the call.
-- `x-velobase-transaction-id`: the ledger transaction for this call.
+- `X-Velobase-Cost-Credits` and `X-Velobase-Cost-Usd`: what this call cost.
+- `X-Velobase-Balance-Credits` and `X-Velobase-Balance-Usd`: the wallet balance after the call.
+- `X-Velobase-Transaction-Id`: the ledger transaction for this call.
+- `X-Velobase-Trace-Id`: your correlation id, echoed back if you sent one.
+
+Streaming is supported on both endpoints; the cost and usage arrive in the final standard frame of the stream (OpenAI: the last usage chunk; Anthropic: `message_delta`).
 
 <Note>
-You can list available models with `GET /v1/models` and review aggregated spend with `GET /v1/usage`.
+You can list your project's models with `GET /v1/models` and review per-call spend with `GET /v1/usage`. A model whose upstream provider key has not been attached yet returns `402 byok_key_required`.
 </Note>
 
 </Step>
@@ -94,6 +100,8 @@ For work that is not a model call (for example image generation or a fixed-price
 
 - Use **direct deduction** when the cost is known upfront.
 - Use **staged deduction** when the final cost is only known after execution.
+
+Amounts are positive integer credits (1 USD = 1,000,000 credits).
 
 <Tabs>
 
@@ -108,11 +116,11 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   -d '{
     "customer_id": "user_123",
     "transaction_id": "img_gen_001",
-    "amount_usd": 0.20
+    "amount": 200000
   }'
 ```
 
-This deducts $0.20 immediately.
+This deducts 200,000 credits ($0.20) immediately.
 
 </Tab>
 
@@ -129,11 +137,11 @@ curl -X POST https://api.velobase.io/v1/billing/freeze \
   -d '{
     "customer_id": "user_123",
     "transaction_id": "llm_task_001",
-    "amount_usd": 0.20
+    "amount": 200000
   }'
 ```
 
-This reserves $0.20 before the task starts.
+This reserves 200,000 credits ($0.20) before the task starts.
 
 **Consume the actual cost**
 
@@ -143,11 +151,11 @@ curl -X POST https://api.velobase.io/v1/billing/consume \
   -H "Content-Type: application/json" \
   -d '{
     "transaction_id": "llm_task_001",
-    "actual_amount_usd": 0.12
+    "actual_amount": 120000
   }'
 ```
 
-Velobase consumes $0.12 and automatically returns the remaining $0.08.
+Velobase consumes 120,000 credits ($0.12) and automatically returns the remaining 80,000 credits ($0.08).
 
 If the task is cancelled, call `unfreeze` instead of `consume`.
 
@@ -173,7 +181,7 @@ Response:
   "email": "ada@example.com",
   "metadata": {},
   "wallets": {
-    "default": {
+    "credits": {
       "total": 1000000,
       "used": 120000,
       "frozen": 0,
@@ -203,19 +211,13 @@ Wallet amounts are reported in credits (1,000,000 credits = 1 USD).
 
 ## SDKs
 
-Prefer a typed client? Install the Velobase billing SDK and pin the version:
+Prefer a typed client? Install the Velobase JavaScript SDK and pin the version:
 
-<CodeGroup>
-
-```bash Python
-pip install "velobase-billing>=0.2.1"
+```bash
+npm i @velobaseai/billing@^1.2.0
 ```
 
-```bash JavaScript
-npm i @velobaseai/billing@^1.1.1
-```
-
-</CodeGroup>
+From Python, call the REST endpoints directly (as in the cURL examples above) and use the OpenAI SDK for gateway calls.
 
 ## Next steps
 

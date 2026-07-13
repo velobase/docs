@@ -43,7 +43,7 @@ Each project is a fully independent namespace for gateway traffic and billing:
 - **Customers** belong to exactly one project. The same `customer_id` in two different projects refers to two different customers with separate wallets.
 - **Usage and billing records** (gateway calls, deposits, deductions, freezes) are project-scoped and never cross boundaries.
 
-This means you can safely use one project for production and another for testing without any risk of interference. Wallet balances are tracked per customer using explicit unit fields (`amount_usd`, `amount_cents`, `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits), so funds are always unambiguous across projects.
+This means you can safely use one project for production and another for testing without any risk of interference. Wallet balances are tracked per customer in integer credits (1 credit = 1 micro-USD, so 1 USD = 1,000,000 credits), so funds are always unambiguous across projects.
 
 ## Tips
 

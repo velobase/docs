@@ -1,7 +1,7 @@
 ---
 title: "Depositing credits"
 sidebarTitle: "Depositing credits"
-description: "Top up a customer's wallet and group funds by wallet category."
+description: "Top up a customer's wallet and group funds by wallet."
 ---
 
 Use `POST /v1/customers/deposit` to add funds to a customer's wallet.
@@ -17,9 +17,9 @@ Use `POST /v1/customers/deposit` to add funds to a customer's wallet.
 
 ## Minimal example
 
-Amounts use explicit unit fields: `amount_usd`, `amount_cents`, or
-`amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. Prefer
-`amount_usd`.
+`amount` is a positive integer number of credits. 1 credit = 1 micro-USD, so
+1 USD = 1,000,000 credits. Unit-suffixed fields such as `amount_usd`,
+`amount_cents`, or `amount_credits` are rejected with an error.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -27,44 +27,36 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount_usd": 5
+    "amount": 5000000,
+    "idempotency_key": "dep_user_987_001"
   }'
 ```
 
-If the customer does not exist, it is created automatically.
+This deposits 5,000,000 credits, which is $5.00. If the customer does not
+exist, it is created automatically.
 
 ## Using the SDK
 
-<CodeGroup>
-
-```python Python
-# pip install "velobase-billing>=0.2.1"
-from velobase_billing import Velobase
-
-vb = Velobase(api_key="your_api_key_here")
-vb.customers.deposit(customer_id="user_987", amount_usd=5)
-# explicit units: amount_usd / amount_cents / amount_credits
-# (1 USD = 100 cents = 1,000,000 credits)
-```
-
-```typescript Node
-// npm i @velobaseai/billing@^1.1.1
+```typescript
+// npm i @velobaseai/billing@^1.2.0
 import { Velobase } from "@velobaseai/billing";
 
 const vb = new Velobase({ apiKey: "your_api_key_here" });
-await vb.customers.deposit({ customerId: "user_987", amountUsd: 5 });
-// explicit units: amountUsd / amountCents / amountCredits
+await vb.customers.deposit({
+  customerId: "user_987",
+  amount: 5_000_000, // integer credits: $5.00
+  idempotencyKey: "stripe_evt_1a2b3c",
+});
 ```
 
-</CodeGroup>
+Deposits are idempotent on the idempotency key, and create the customer on
+first use. See the [JavaScript SDK](/integration/sdk-javascript) reference for
+the full surface. From Python, call the REST endpoint directly as in the cURL
+examples on this page.
 
-Both deposits are idempotent on an idempotency key, and create the customer on
-first use. See the [Python](/integration/sdk-python) and
-[JavaScript](/integration/sdk-javascript) SDK references for the full surface.
+## Deposit into a named wallet
 
-## Add a wallet category
-
-Use `credit_type` when you want this deposit to show up under a specific wallet category in the console and wallet breakdown.
+Use `wallet` when you want this deposit to show up under a specific wallet in the console and wallet breakdown. The default wallet is `credits`.
 
 ```bash
 curl -X POST https://api.velobase.io/v1/customers/deposit \
@@ -72,13 +64,13 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount_usd": 2.5,
-    "credit_type": "promo_campaign_2026",
+    "amount": 2500000,
+    "wallet": "promo_campaign_2026",
     "idempotency_key": "deposit_user_987_promo_2026"
   }'
 ```
 
-Use any string for `credit_type`, for example: `default`, `promo_campaign_2026`, `membership_gold`.
+Use any string for `wallet`, for example: `credits`, `promo_campaign_2026`, `membership_gold`.
 
 ## Add a validity period
 
@@ -90,8 +82,8 @@ curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Content-Type: application/json" \
   -d '{
     "customer_id": "user_987",
-    "amount_usd": 1,
-    "credit_type": "summer_campaign_2026",
+    "amount": 1000000,
+    "wallet": "summer_campaign_2026",
     "starts_at": "2026-06-01T00:00:00.000Z",
     "expires_at": "2026-06-30T23:59:59.999Z",
     "idempotency_key": "deposit_user_987_summer_campaign_2026"
@@ -106,25 +98,18 @@ Before `starts_at` the funds are inactive. After `expires_at` they are no longer
   Your internal ID for the customer. If the customer does not exist, it is created automatically.
 </ParamField>
 
-<ParamField path="body.amount_usd" type="number">
-  Amount to add, in US dollars. Must be greater than 0. Provide exactly one amount field.
-</ParamField>
-
-<ParamField path="body.amount_cents" type="number">
-  Amount to add, in cents (1 USD = 100 cents).
-</ParamField>
-
-<ParamField path="body.amount_credits" type="number">
-  Amount to add, in credits (1 USD = 1,000,000 credits).
+<ParamField path="body.amount" type="number" required>
+  Amount to add, in positive integer credits. Must be greater than 0. 1 USD = 1,000,000 credits.
 </ParamField>
 
 <Note>
-  A bare `amount` is legacy and is interpreted as cents, not credits. Prefer
-  the explicit `amount_usd`, `amount_cents`, or `amount_credits` fields.
+  Unit-suffixed fields (`amount_usd`, `amount_cents`, `amount_credits`) are not
+  accepted; the API rejects them with an error. Convert to integer credits
+  before calling.
 </Note>
 
-<ParamField path="body.credit_type" type="string" default="default">
-  Wallet category for this deposit. Use any string, such as `default`, `promo_campaign_2026`, or `membership_gold`. Defaults to `default`.
+<ParamField path="body.wallet" type="string" default="credits">
+  Wallet for this deposit. Use any string, such as `credits`, `promo_campaign_2026`, or `membership_gold`. Defaults to `credits`. (`credit_type` is a deprecated alias for this field.)
 </ParamField>
 
 <ParamField path="body.starts_at" type="string">
@@ -136,19 +121,15 @@ Before `starts_at` the funds are inactive. After `expires_at` they are no longer
 </ParamField>
 
 <ParamField path="body.idempotency_key" type="string">
-  Prevents duplicate deposits. Repeating a request with the same key returns the original result with `is_idempotent_replay: true` and does not create a second deposit.
+  Prevents duplicate deposits. Repeating a request with the same key returns the original result with `is_idempotent_replay: true` and does not create a second deposit. Optional, but strongly recommended: use your payment event id.
 </ParamField>
 
 <ParamField path="body.name" type="string">
-  Display name for the customer. Created or updated on deposit.
+  Display name for the customer. Used when creating a new customer.
 </ParamField>
 
 <ParamField path="body.email" type="string">
-  Email address for the customer. Created or updated on deposit.
-</ParamField>
-
-<ParamField path="body.metadata" type="object">
-  Arbitrary JSON attached to the customer record.
+  Email address for the customer. Used when creating a new customer.
 </ParamField>
 
 <ParamField path="body.description" type="string">
@@ -161,7 +142,7 @@ Before `starts_at` the funds are inactive. After `expires_at` they are no longer
 {
   "customer_id": "user_987",
   "account_id": "...",
-  "credit_type": "summer_campaign_2026",
+  "wallet": "summer_campaign_2026",
   "total_amount": 1000000,
   "added_amount": 1000000,
   "starts_at": "2026-06-01T00:00:00.000Z",
@@ -179,8 +160,8 @@ Before `starts_at` the funds are inactive. After `expires_at` they are no longer
   The underlying wallet source created by this deposit.
 </ResponseField>
 
-<ResponseField name="credit_type" type="string">
-  Wallet category used for this deposit.
+<ResponseField name="wallet" type="string">
+  Wallet used for this deposit.
 </ResponseField>
 
 <ResponseField name="total_amount" type="number">
@@ -207,10 +188,10 @@ Before `starts_at` the funds are inactive. After `expires_at` they are no longer
   `true` when the response was returned from a previous request with the same `idempotency_key`.
 </ResponseField>
 
-## Query wallet and categories
+## Query wallets
 
 Fetch the customer to see their wallets. `GET /v1/customers/{id}` returns a
-`wallets` map keyed by wallet category, each with its own totals and the
+`wallets` map keyed by wallet name, each with its own totals and the
 `sources` (deposits) that fund it.
 
 ```bash
@@ -225,35 +206,35 @@ curl https://api.velobase.io/v1/customers/user_987 \
   "email": "alice@example.com",
   "metadata": {},
   "wallets": {
-    "default": {
-      "total": 1000000,
+    "credits": {
+      "total": 5000000,
       "used": 0,
       "frozen": 0,
-      "available": 1000000,
+      "available": 5000000,
       "sources": [
         {
-          "source": "default",
-          "total": 1000000,
+          "source": "credits",
+          "total": 5000000,
           "used": 0,
           "frozen": 0,
-          "available": 1000000,
+          "available": 5000000,
           "starts_at": null,
           "expires_at": null
         }
       ]
     },
     "promo_campaign_2026": {
-      "total": 500000,
+      "total": 2500000,
       "used": 0,
       "frozen": 0,
-      "available": 500000,
+      "available": 2500000,
       "sources": [
         {
           "source": "promo_campaign_2026",
-          "total": 500000,
+          "total": 2500000,
           "used": 0,
           "frozen": 0,
-          "available": 500000,
+          "available": 2500000,
           "starts_at": null,
           "expires_at": null
         }
@@ -265,26 +246,26 @@ curl https://api.velobase.io/v1/customers/user_987 \
 ```
 
 <ResponseField name="wallets" type="object">
-  Map of wallet category to that wallet's balance. The key is the `credit_type` used at deposit time.
+  Map of wallet name to that wallet's balance. The key is the `wallet` used at deposit time.
 </ResponseField>
 
-<ResponseField name="wallets.{category}.total" type="number">
+<ResponseField name="wallets.{wallet}.total" type="number">
   Total credits in this wallet across its active sources.
 </ResponseField>
 
-<ResponseField name="wallets.{category}.used" type="number">
+<ResponseField name="wallets.{wallet}.used" type="number">
   Credits already consumed from this wallet.
 </ResponseField>
 
-<ResponseField name="wallets.{category}.frozen" type="number">
+<ResponseField name="wallets.{wallet}.frozen" type="number">
   Credits currently reserved by in-progress staged deduction flows.
 </ResponseField>
 
-<ResponseField name="wallets.{category}.available" type="number">
+<ResponseField name="wallets.{wallet}.available" type="number">
   Credits available to spend in this wallet: `total - used - frozen`.
 </ResponseField>
 
-<ResponseField name="wallets.{category}.sources" type="array">
+<ResponseField name="wallets.{wallet}.sources" type="array">
   Per-source breakdown. Each entry corresponds to one deposit, with its own validity window via `starts_at` and `expires_at`.
 </ResponseField>
 

@@ -1,102 +1,115 @@
 ---
-title: "Python SDK"
-sidebarTitle: "Python SDK"
-description: "The velobase-billing package for deposits, balances, and billing primitives."
+title: "Python"
+sidebarTitle: "Python"
+description: "Use Velobase from Python: the OpenAI SDK for the gateway, plain REST for the billing control-plane."
 ---
 
-The `velobase-billing` package wraps the Velobase control-plane: customer
-deposits, balances, ledgers, and the freeze / consume / deduct primitives.
+From Python you need two things, and neither requires a Velobase-specific
+package:
+
+- **Model calls**: point the official OpenAI SDK at the gateway. See
+  [OpenAI-Compatible Gateway](/integration/openai-compatible).
+- **Billing control-plane** (deposits, balances, freeze / consume / deduct):
+  call the REST endpoints directly with `requests`, `httpx`, or any HTTP
+  client.
 
 <Note>
-The SDK is for the **billing control-plane**. To make model calls, point the
-**OpenAI SDK** at the gateway, see
-[OpenAI-Compatible Gateway](/integration/openai-compatible).
+A `velobase-billing` package exists on PyPI, but it is outdated and does not
+track the current API. Prefer the REST calls below. If you are on Node, the
+[JavaScript SDK](/integration/sdk-javascript) (`@velobaseai/billing@^1.2.0`) is
+the maintained, typed client.
 </Note>
 
-## Install
-
-```bash
-pip install "velobase-billing>=0.2.1"
-```
-
-## Initialize
+## Model calls (OpenAI SDK)
 
 ```python
-from velobase_billing import Velobase
+from openai import OpenAI
 
-vb = Velobase(api_key="vb_live_your_project_key")
-# base_url defaults to https://api.velobase.io, override for self-hosted / dev:
-# vb = Velobase(api_key="...", base_url="https://api.velobase.io")
+client = OpenAI(
+    api_key="vb_live_your_project_key",
+    base_url="https://api.velobase.io/v1",
+    default_headers={"X-Velobase-Customer": "user_123"},
+)
+
+resp = client.chat.completions.create(
+    model="your-model-id",  # one of your project's models, see GET /v1/models
+    messages=[{"role": "user", "content": "Hello!"}],
+)
+print(resp.choices[0].message.content)
 ```
-
-An async client is also available as `AsyncVelobase` with the same methods.
 
 ## Deposit credits to a customer
 
-State the amount with an explicit unit. `amount_usd` is the least error-prone.
+`amount` is a positive integer number of credits. 1 credit = 1 micro-USD, so
+1 USD = 1,000,000 credits.
 
 ```python
-vb.customers.deposit(customer_id="user_123", amount_usd=5)
-# or: amount_cents=500  /  amount_credits=5_000_000
-# 1 USD = 100 cents = 1,000,000 credits
-```
+import requests
 
-Pass `idempotency_key` so a retry never double-credits (use your payment event
-id in production):
+BASE = "https://api.velobase.io"
+HEADERS = {"Authorization": "Bearer vb_live_your_project_key"}
 
-```python
-vb.customers.deposit(
-    customer_id="user_123",
-    amount_usd=5,
-    idempotency_key="stripe_evt_1a2b3c",
+resp = requests.post(
+    f"{BASE}/v1/customers/deposit",
+    headers=HEADERS,
+    json={
+        "customer_id": "user_123",
+        "amount": 5_000_000,  # $5.00
+        "idempotency_key": "stripe_evt_1a2b3c",  # so a retry never double-credits
+    },
 )
+resp.raise_for_status()
 ```
-
-<Note>
-`amount=` (cents) is still accepted for backward compatibility, but prefer the
-explicit `amount_usd` / `amount_cents` / `amount_credits` so the unit is clear.
-</Note>
 
 ## Read a balance
 
-`get()` returns the customer with their wallets, each broken down by source:
+`GET /v1/customers/{id}` returns the customer with their wallets, each broken
+down by source:
 
 ```python
-cust = vb.customers.get("user_123")
-default = cust.wallets["default"]
-print(default.available, "available")
-for s in default.sources:
-    print(s.source, s.available)
+cust = requests.get(f"{BASE}/v1/customers/user_123", headers=HEADERS).json()
+wallet = cust["wallets"]["credits"]
+print(wallet["available"], "available")
+for s in wallet["sources"]:
+    print(s["source"], s["available"])
 ```
 
 ## Read the ledger
 
 ```python
-page = vb.customers.ledger("user_123", limit=20)
-for entry in page.items:
-    print(entry.operation_type, entry.amount, entry.transaction_id)
-if page.has_more:
-    next_page = vb.customers.ledger("user_123", cursor=page.next_cursor)
+page = requests.get(
+    f"{BASE}/v1/customers/user_123/ledger",
+    headers=HEADERS,
+    params={"limit": 20},
+).json()
 ```
+
+Paginate with the returned cursor; filter with `operation_type` or
+`transaction_id`.
 
 ## Billing primitives
 
 For metering work you price yourself (not model calls, which bill
 automatically), use freeze → consume for unknown-cost work, or deduct for
-fixed-cost work.
+fixed-cost work. All amounts are integer credits.
 
 ```python
-# Known cost up front:
-vb.billing.deduct(customer_id="user_123", transaction_id="img_001", amount=20)
+# Known cost up front: 200,000 credits = $0.20
+requests.post(f"{BASE}/v1/billing/deduct", headers=HEADERS, json={
+    "customer_id": "user_123", "transaction_id": "img_001", "amount": 200_000,
+})
 
 # Unknown cost: reserve a budget, then settle the actual amount.
-vb.billing.freeze(customer_id="user_123", transaction_id="job_001", amount=50)
-vb.billing.consume(transaction_id="job_001", actual_amount=32)  # releases the rest
-# vb.billing.unfreeze(transaction_id="job_001")  # cancel, release everything
+requests.post(f"{BASE}/v1/billing/freeze", headers=HEADERS, json={
+    "customer_id": "user_123", "transaction_id": "job_001", "amount": 1_000_000,
+})
+requests.post(f"{BASE}/v1/billing/consume", headers=HEADERS, json={
+    "transaction_id": "job_001", "actual_amount": 730_000,  # releases the rest
+})
+# To cancel instead: POST /v1/billing/unfreeze {"transaction_id": "job_001"}
 ```
 
 ## Errors
 
-All failures raise a `VelobaseError` subclass (`AuthenticationError`,
-`NotFoundError`, `ConflictError`, `ValidationError`, `InternalError`), each
-carrying the server `request_id`. See [Errors](/advanced/errors).
+All failures return a structured `error` object with `message`, `type`, and a
+stable `code`. See [Errors](/advanced/errors).

@@ -38,13 +38,13 @@ curl https://api.velobase.io/v1/chat/completions \
   -H "Authorization: Bearer vb_live_1234567890abcdef" \
   -H "X-Velobase-Customer: user_42" \
   -H "Content-Type: application/json" \
-  -d '{"model": "deepseek/deepseek-v4-pro", "messages": [{"role": "user", "content": "Hello"}]}'
+  -d '{"model": "your-model-id", "messages": [{"role": "user", "content": "Hello"}]}'
 
 # Customer-scoped key: customer is implied, no header needed
 curl https://api.velobase.io/v1/chat/completions \
   -H "Authorization: Bearer vb_customer_1234567890abcdef" \
   -H "Content-Type: application/json" \
-  -d '{"model": "deepseek/deepseek-v4-pro", "messages": [{"role": "user", "content": "Hello"}]}'
+  -d '{"model": "your-model-id", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
 
 <Note>

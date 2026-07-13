@@ -8,7 +8,7 @@ description: "Velobase pricing plans, billing cycles, and what counts as a trans
 
 Velobase is an AI gateway first: point your OpenAI or Anthropic SDK at `https://api.velobase.io/v1` and bill every model call to an end-customer's wallet with the `X-Velobase-Customer: <user-id>` header. It is also a billing ledger (freeze, consume, deduct) for work you price yourself.
 
-Velobase charges based on **ledger transactions**: only successful `Deduct` and `Consume` operations count. Deposits, freezes, unfreezes, and wallet queries are always free. Model gateway calls are settled against the end-customer wallet and reported back to you per request via the `x-velobase-cost-cents`, `x-velobase-cost-credits`, and `x-velobase-balance-credits` response headers.
+Velobase charges based on **ledger transactions**: only successful `Deduct` and `Consume` operations count. Deposits, freezes, unfreezes, and wallet queries are always free. Model gateway calls are settled against the end-customer wallet and reported back to you per request via the `X-Velobase-Cost-Credits`, `X-Velobase-Cost-Usd`, and `X-Velobase-Balance-Credits` response headers.
 
 <Note>
   New to the gateway? See the [Quickstart](/quickstart) to route your first model call and deposit funds to a customer wallet. This page covers what Velobase bills *you* for using the platform.
@@ -36,13 +36,7 @@ Each model gateway call (`POST /v1/chat/completions`, `POST /v1/messages`) settl
 
 ## Units
 
-All amount fields are explicit about their unit:
-
-- `amount_usd`: dollars (preferred).
-- `amount_cents`: integer cents.
-- `amount_credits`: integer credits.
-
-The conversion is fixed: **1 USD = 100 cents = 1,000,000 credits**. A bare `amount` is legacy and means *cents*, not credits. Prefer `amount_usd` in new integrations.
+Every amount field in the API is a positive **integer number of credits**. The conversion is fixed: 1 credit = 1 micro-USD, so **1 USD = 1,000,000 credits**. There is no cents unit anywhere in the API, and unit-suffixed fields such as `amount_usd`, `amount_cents`, or `amount_credits` are rejected with an error.
 
 ## Plans
 
@@ -98,19 +92,11 @@ Deposits, freezes, unfreezes, and wallet queries continue to work normally.
 
 The project dashboard nav is: Overview, Models, Customers, Keys, Usage, Settings. The **Usage** section shows your billable ledger transactions and model gateway calls; you can also pull the same data programmatically from `GET /v1/usage`.
 
-If you build with the Velobase SDK, pin a version:
+If you build with the Velobase JavaScript SDK, pin a version:
 
-<CodeGroup>
-
-```bash Python
-pip install "velobase-billing>=0.2.1"
+```bash
+npm i @velobaseai/billing@^1.2.0
 ```
-
-```bash JavaScript
-npm i @velobaseai/billing@^1.1.1
-```
-
-</CodeGroup>
 
 ## Enterprise
 

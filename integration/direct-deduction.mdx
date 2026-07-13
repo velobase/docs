@@ -23,9 +23,11 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   -d '{
     "customer_id": "user_987",
     "transaction_id": "img_gen_001",
-    "amount_usd": 0.05
+    "amount": 50000
   }'
 ```
+
+This deducts 50,000 credits, which is $0.05 (1 USD = 1,000,000 credits).
 
 ## Parameters
 
@@ -37,12 +39,12 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   Unique ID for this charge transaction. Also serves as the idempotency key: repeating a request with the same `transaction_id` returns the original result without double-charging.
 </ParamField>
 
-<ParamField path="body.amount_usd" type="number" required>
-  Amount to deduct, in US dollars. Must be greater than 0. You can instead pass `amount_cents` or `amount_credits`, where 1 USD = 100 cents = 1,000,000 credits. A bare `amount` is legacy and is interpreted as cents.
+<ParamField path="body.amount" type="number" required>
+  Amount to deduct, in positive integer credits. Must be greater than 0. 1 credit = 1 micro-USD, so 1 USD = 1,000,000 credits. Explicit unit fields such as `amount_usd`, `amount_cents`, or `amount_credits` are rejected.
 </ParamField>
 
-<ParamField path="body.credit_types" type="string[]">
-  Restrict deduction to these wallet categories only. If omitted, the system may draw from any active credits. If provided and the selected categories have insufficient credits, the request fails.
+<ParamField path="body.wallet" type="string">
+  Optional. Restrict the deduction to a single wallet by name. If omitted, the system may draw from any active credits.
 </ParamField>
 
 <ParamField path="body.business_type" type="string">
@@ -62,7 +64,7 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   "deduct_details": [
     {
       "account_id": "...",
-      "credit_type": "default",
+      "credit_type": "credits",
       "amount": 50000
     }
   ],
@@ -80,14 +82,14 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
 </ResponseField>
 
 <ResponseField name="deduct_details" type="array">
-  Deduction breakdown. Funds may be consumed from multiple wallet categories when the amount spans more than one source.
+  Deduction breakdown. Funds may be consumed from multiple wallet sources when the amount spans more than one source.
 
   <Expandable title="deduct_details properties">
     <ResponseField name="account_id" type="string">
       Underlying funding source ID used for the deduction.
     </ResponseField>
     <ResponseField name="credit_type" type="string">
-      Wallet category that was consumed.
+      Wallet that was consumed.
     </ResponseField>
     <ResponseField name="amount" type="number">
       Amount deducted from that source, in credits.
@@ -103,29 +105,28 @@ curl -X POST https://api.velobase.io/v1/billing/deduct \
   `true` when the response was returned from a previous request with the same `transaction_id`.
 </ResponseField>
 
-## Deduction Rules and Wallet Categories
+## Deduction Rules and Wallets
 
 - The system automatically deducts from all available balance across the customer's wallets.
-- If `credit_types` is provided, deduction is limited to those wallet categories only.
-- Callers do not choose which wallet category to consume from.
+- If `wallet` is provided, deduction is limited to that wallet only.
+- Callers do not choose which underlying funding source is consumed.
 - Funds that expire sooner are consumed first. If expiry is the same, older sources are consumed first.
 - Only funds that are currently active are eligible for deduction. Sources that have not started yet or have already expired are ignored.
 - Use `GET /v1/customers/{id}` to inspect the remaining balance per wallet and per source.
 
 ## Insufficient Balance
 
-Returns `400` if the customer doesn't have enough available balance:
+Returns an `insufficient_balance` error if the customer doesn't have enough available balance:
 
 ```json
 {
   "error": {
     "message": "insufficient balance",
-    "type": "bad_request"
+    "type": "bad_request",
+    "code": "insufficient_balance"
   }
 }
 ```
-
-If `credit_types` is provided, the error message becomes `insufficient balance in selected credit_types` when the selected wallet categories do not have enough credits.
 
 Failed requests do not produce a partial deduction and do not leave behind a half-completed state.
 
@@ -149,7 +150,7 @@ curl https://api.velobase.io/v1/customers/user_987 \
   "email": "ada@example.com",
   "metadata": {},
   "wallets": {
-    "default": {
+    "credits": {
       "total": 10000000,
       "used": 50000,
       "frozen": 0,
@@ -184,9 +185,9 @@ All API errors return an HTTP error status and a structured `error` object:
 ```json
 {
   "error": {
-    "message": "insufficient balance in selected credit_types",
+    "message": "insufficient balance",
     "type": "bad_request",
-    "code": "insufficient_balance_in_selected_credit_types"
+    "code": "insufficient_balance"
   }
 }
 ```

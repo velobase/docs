@@ -5,10 +5,10 @@ description: "Point your OpenAI or Anthropic SDK at Velobase and bill every mode
 ---
 
 Velobase is a model-agnostic, OpenAI-compatible AI gateway. Point your OpenAI
-SDK at it and call any available model (Claude, DeepSeek, and more) by its id,
-changing two things: the **base URL** and one **header** that says which
-end-customer to bill. Every call is metered against that customer's wallet, and
-the per-call cost comes back on the response headers.
+SDK at it and call any model your project has configured, changing two things:
+the **base URL** and one **header** that says which end-customer to bill. Every
+call is metered against that customer's wallet, and the per-call cost comes
+back on the response headers.
 
 <Note>
 **Base URL:** `https://api.velobase.io/v1`, the OpenAI SDK expects the `/v1`
@@ -18,24 +18,25 @@ customer-scoped `vb_customer_…` key that carries its own customer, so no heade
 is needed. **Who to bill:** the `X-Velobase-Customer: <your-user-id>` header.
 </Note>
 
-## Available models
+## Your models
 
-Call any of these by its `model` id through the OpenAI-compatible endpoint.
-Prices are what your customer's wallet is charged, per million tokens.
+Models are defined per project, and you bring your own upstream key (BYOK). In
+the dashboard's **Models** section you add a model with three things:
 
-| `model` | Streaming | Input ($/1M) | Output ($/1M) |
-| --- | --- | --- | --- |
-| `deepseek/deepseek-v4-pro` | Yes | $0.49 | $0.96 |
-| `anthropic/claude-haiku-4.5` | No | $1.10 | $5.50 |
-| `anthropic/claude-sonnet-4.6` | No | $3.30 | $16.50 |
-| `anthropic/claude-opus-4.5` | No | $5.50 | $27.50 |
-| `anthropic/claude-opus-4.6` | No | $5.50 | $27.50 |
-| `anthropic/claude-opus-4.7` | No | $5.50 | $27.50 |
-| `anthropic/claude-opus-4.8` | No | $5.50 | $27.50 |
+- a public model id (what your app passes as `model`),
+- the price your customers pay, per million tokens,
+- the upstream provider key it routes to.
 
-Call `GET /v1/models` for the live list your project can route. More models open
-up as upstreams are connected. Claude models route through Bedrock and are
-non-streaming for now, so pick a DeepSeek model when you need streaming.
+`GET /v1/models` returns exactly the models your project has configured, with
+per-model pricing in both credits and USD (`input_price_per_million_credits`,
+`input_price_per_million_usd`, `output_price_per_million_credits`,
+`output_price_per_million_usd`, plus `cache_read_...` and `cache_write_...`
+variants), along with `context_window`, `max_output_tokens`, `display_name`,
+`description`, and `active`.
+
+There is no platform-wide model list. A model that exists but has no upstream
+provider key attached returns `402 byok_key_required` (an operator
+configuration issue, distinct from customer balance).
 
 ## Copy for AI
 
@@ -53,24 +54,27 @@ Setup:
 - Base URL: https://api.velobase.io/v1   (the OpenAI SDK needs the /v1 suffix)
 - Auth: Authorization: Bearer <VELOBASE_PROJECT_KEY>   (vb_live_...)
 - Bill a customer by sending header X-Velobase-Customer: <your-user-id>
+- Models are whatever my project configured in the dashboard; list them with GET /v1/models.
 
 Call (Python):
 from openai import OpenAI
 client = OpenAI(api_key="vb_live_...", base_url="https://api.velobase.io/v1",
                 default_headers={"X-Velobase-Customer": "user_123"})
 r = client.chat.completions.with_raw_response.create(
-    model="anthropic/claude-opus-4.8",
+    model="<a model id from GET /v1/models>",
     messages=[{"role": "user", "content": "Hello"}], max_tokens=256)
-# billing on headers: x-velobase-cost-cents / -cost-credits /
-#                     -balance-credits / -transaction-id
+# billing on headers: X-Velobase-Cost-Credits / -Cost-Usd /
+#                     -Balance-Credits / -Balance-Usd / -Transaction-Id / -Trace-Id
 print(r.parse().choices[0].message.content)
 
-Fund a customer first (else 402): POST /v1/customers/{id}/deposit {"amount_usd": 5}
-Reconcile: GET /v1/usage (rows carry cost_cents, tokens, transaction_id)
-Notes: Claude routes via Bedrock which does not support streaming yet, use
-stream=false for Claude (DeepSeek models support streaming). Official models
-debit both the customer wallet and your project wallet; a call 402s if either
-is empty. Control-plane SDKs: pip install "velobase-billing>=0.2.1" / npm i @velobaseai/billing@^1.1.1.
+Fund a customer first (else 402 insufficient_balance):
+POST /v1/customers/deposit {"customer_id": "user_123", "amount": 5000000}
+(amount is integer credits; 1 USD = 1,000,000 credits, so 5000000 = $5.00)
+Reconcile: GET /v1/usage (filter by customer_id / model / transaction_id / trace_id)
+Streaming: supported on /v1/chat/completions and /v1/messages; cost/usage arrives
+in the final standard frame (OpenAI: last usage chunk; Anthropic: message_delta).
+402 byok_key_required means the model has no upstream provider key attached in
+the dashboard. Control-plane SDK: npm i @velobaseai/billing@^1.2.0.
 ````
 
 ## Make a call
@@ -88,12 +92,12 @@ client = OpenAI(
 
 # with_raw_response gives you the billing headers alongside the parsed body
 resp = client.chat.completions.with_raw_response.create(
-    model="anthropic/claude-opus-4.8",
+    model="your-model-id",
     messages=[{"role": "user", "content": "Say hi in three words."}],
     max_tokens=64,
 )
 print(resp.parse().choices[0].message.content)
-print("cost (cents):", resp.headers.get("x-velobase-cost-cents"))
+print("cost (USD):", resp.headers.get("x-velobase-cost-usd"))
 print("balance (credits):", resp.headers.get("x-velobase-balance-credits"))
 print("txn:", resp.headers.get("x-velobase-transaction-id"))
 ```
@@ -109,14 +113,14 @@ const client = new OpenAI({
 
 const { data, response } = await client.chat.completions
   .create({
-    model: "anthropic/claude-opus-4.8",
+    model: "your-model-id",
     messages: [{ role: "user", content: "Say hi in three words." }],
     max_tokens: 64,
   })
   .withResponse();
 
 console.log(data.choices[0].message.content);
-console.log("cost (cents):", response.headers.get("x-velobase-cost-cents"));
+console.log("cost (USD):", response.headers.get("x-velobase-cost-usd"));
 console.log("txn:", response.headers.get("x-velobase-transaction-id"));
 ```
 
@@ -126,7 +130,7 @@ curl https://api.velobase.io/v1/chat/completions \
   -H "X-Velobase-Customer: user_123" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-opus-4.8",
+    "model": "your-model-id",
     "messages": [{"role": "user", "content": "Say hi in three words."}],
     "max_tokens": 64
   }'
@@ -134,84 +138,86 @@ curl https://api.velobase.io/v1/chat/completions \
 
 </CodeGroup>
 
-## Per-call billing headers
-
-Every non-streaming response carries the billing result on its headers, so you
-can show cost and balance without a second request:
+## Request headers
 
 | Header | Meaning |
 | --- | --- |
-| `x-velobase-cost-cents` | Cost of this call, in cents |
-| `x-velobase-cost-credits` | Same cost, in credits (1 USD = 100 cents = 1,000,000 credits) |
-| `x-velobase-balance-credits` | The customer wallet's remaining balance after this call, in credits |
-| `x-velobase-transaction-id` | Ties this call to a usage row and ledger entry |
+| `X-Velobase-Customer` | The end-customer to bill (required with a `vb_live_` project key; not needed with a `vb_customer_` key) |
+| `X-Velobase-Wallet` | Bill a specific wallet instead of the default `credits` wallet |
+| `X-Velobase-Trace-Id` | Your correlation id; echoed on the response, queryable via `GET /v1/usage?trace_id=` |
+| `Idempotency-Key` | Unique key per logical request. Replaying the same key returns `409` instead of double-charging; use a fresh key per new request and reuse it only for retries of the same request |
+
+## Per-call billing headers
+
+Every billed response carries the billing result on its headers, so you can
+show cost and balance without a second request:
+
+| Header | Meaning |
+| --- | --- |
+| `X-Velobase-Cost-Credits` | Cost of this call, in credits (1 USD = 1,000,000 credits) |
+| `X-Velobase-Cost-Usd` | The same cost, in USD |
+| `X-Velobase-Balance-Credits` | The customer wallet's remaining balance after this call, in credits |
+| `X-Velobase-Balance-Usd` | The same balance, in USD |
+| `X-Velobase-Transaction-Id` | Ties this call to a usage row and ledger entry |
+| `X-Velobase-Trace-Id` | Your correlation id, echoed back |
 
 These headers are CORS-exposed, so a browser frontend can read them too.
 
 ## Streaming
 
-Streaming is supported for OpenAI-protocol models (for example
-`deepseek/deepseek-v4-pro`). The billing result arrives as a `velobase` object
-on the final stream frame, before `[DONE]`. Request it with
-`stream_options: { include_usage: true }`.
-
-<Warning>
-Claude models are routed through Amazon Bedrock, which does not support
-streaming yet. A streaming request for a Claude model returns
-`400 streaming is not yet supported on this model's current route`. Use
-`stream: false` for Claude, or choose a DeepSeek model when you need streaming.
-</Warning>
+Streaming is supported on both `POST /v1/chat/completions` and
+`POST /v1/messages`. The billing result arrives in the **final standard frame**
+of the stream: for OpenAI-protocol streams it rides the last usage chunk
+(before `[DONE]`), and for Anthropic-protocol streams it rides the
+`message_delta` event. Usage accounting works the same for streaming and
+non-streaming calls.
 
 ## Fund the customer first
 
 A model call needs a funded customer wallet, otherwise it returns
-`402 insufficient_funds`. Top one up before (or right after) you create the user:
+`402 insufficient_balance` (the body includes the required and available credit
+amounts, so you can drive a paywall from it). Top one up before (or right
+after) you create the user. `amount` is integer credits: 1 USD = 1,000,000
+credits.
 
 <CodeGroup>
-
-```python Python
-from velobase_billing import Velobase
-
-vb = Velobase(api_key="vb_live_your_project_key")
-vb.customers.deposit(customer_id="user_123", amount_usd=5)
-```
 
 ```typescript Node
 import { Velobase } from "@velobaseai/billing";
 
 const vb = new Velobase({ apiKey: "vb_live_your_project_key" });
-await vb.customers.deposit({ customerId: "user_123", amountUsd: 5 });
+await vb.customers.deposit({ customerId: "user_123", amount: 5_000_000 }); // $5.00
 ```
 
 ```bash curl
-curl https://api.velobase.io/v1/customers/user_123/deposit \
+curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Authorization: Bearer vb_live_your_project_key" \
   -H "Content-Type: application/json" \
-  -d '{"amount_usd": 5}'
+  -d '{"customer_id": "user_123", "amount": 5000000}'
 ```
 
 </CodeGroup>
 
-See [Depositing Credits](/integration/depositing-credits) for the amount units
-and idempotency rules.
+See [Depositing Credits](/integration/depositing-credits) for wallets, validity
+windows, and idempotency rules.
 
-## Two wallets
+## Where the money comes from
 
-Official (Velobase-routed) models debit two ledgers on each call:
+Each model call settles against exactly one ledger: the end-customer's wallet,
+in your pricing units. The upstream provider bills you directly on the API key
+you attached to the model (BYOK); Velobase does not resell tokens. Two 402s to
+tell apart:
 
-1. The **customer wallet**, your own pricing units, what you charge your end-user.
-2. The **project wallet**, real money you prepaid Velobase via Stripe.
-
-A call succeeds only when **both** have funds. If the project wallet runs out,
-calls return `402 project_balance_insufficient` regardless of the customer
-wallet. Customer deposits are virtual record-keeping and never move real money.
+- `402 insufficient_balance`: the customer's wallet cannot cover the call. Fix by depositing.
+- `402 byok_key_required`: the model has no upstream provider key attached. Fix in the dashboard's Models section.
 
 ## Reconcile usage
 
-`GET /v1/usage` returns one row per call with `cost_cents`,
-`upstream_cost_cents`, token counts, `model`, `customer_id`, and
-`transaction_id`. Join it to the `x-velobase-transaction-id` from each response
-to reconcile spend per customer.
+`GET /v1/usage` returns one row per call. Filter with `customer_id`, `model`,
+`transaction_id`, `trace_id`, and paginate with `cursor` and `limit`. Join rows
+to the `X-Velobase-Transaction-Id` from each response to reconcile spend per
+customer. Each billed call also has a receipt at
+`GET /v1/billing/receipts/:transaction_id`.
 
 ```bash
 curl "https://api.velobase.io/v1/usage?limit=20&customer_id=user_123" \
@@ -225,6 +231,6 @@ curl "https://api.velobase.io/v1/usage?limit=20&customer_id=user_123" \
     Deposits, balances and billing primitives from Node/TypeScript.
   </Card>
   <Card title="Python SDK" icon="python" href="/integration/sdk-python">
-    The same control-plane operations from Python.
+    The same control-plane operations from Python via REST.
   </Card>
 </CardGroup>

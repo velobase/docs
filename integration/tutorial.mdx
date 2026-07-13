@@ -20,12 +20,13 @@ A model call needs a funded customer wallet. Create/fund one with your app's
 own user id:
 
 ```bash
-curl https://api.velobase.io/v1/customers/user_123/deposit \
+curl -X POST https://api.velobase.io/v1/customers/deposit \
   -H "Authorization: Bearer vb_live_your_project_key" \
   -H "Content-Type: application/json" \
-  -d '{"amount_usd": 5}'
+  -d '{"customer_id": "user_123", "amount": 5000000}'
 ```
 
+`amount` is integer credits: 1 USD = 1,000,000 credits, so this deposits $5.00.
 The customer is created on first deposit. In production you call this from your
 backend after the user pays you, using the payment event id as the
 `idempotency_key`.
@@ -45,12 +46,12 @@ client = OpenAI(
     default_headers={"X-Velobase-Customer": "user_123"},
 )
 resp = client.chat.completions.with_raw_response.create(
-    model="anthropic/claude-opus-4.8",
+    model="your-model-id",  # one of your project's models, see GET /v1/models
     messages=[{"role": "user", "content": "Write a one-line haiku about billing."}],
     max_tokens=64,
 )
 print(resp.parse().choices[0].message.content)
-print("charged (cents):", resp.headers.get("x-velobase-cost-cents"))
+print("charged (USD):", resp.headers.get("x-velobase-cost-usd"))
 print("txn:", resp.headers.get("x-velobase-transaction-id"))
 ```
 
@@ -64,20 +65,21 @@ const client = new OpenAI({
 });
 const { data, response } = await client.chat.completions
   .create({
-    model: "anthropic/claude-opus-4.8",
+    model: "your-model-id", // one of your project's models, see GET /v1/models
     messages: [{ role: "user", content: "Write a one-line haiku about billing." }],
     max_tokens: 64,
   })
   .withResponse();
 console.log(data.choices[0].message.content);
-console.log("charged (cents):", response.headers.get("x-velobase-cost-cents"));
+console.log("charged (USD):", response.headers.get("x-velobase-cost-usd"));
 ```
 
 </CodeGroup>
 
 The call debits `user_123`'s wallet and returns the cost on the response
-headers. If you see `402 insufficient_funds`, the customer wallet is empty; if
-you see `402 project_balance_insufficient`, top up your project wallet.
+headers. If you see `402 insufficient_balance`, the customer wallet is empty;
+if you see `402 byok_key_required`, the model has no upstream provider key
+attached yet (fix it in the dashboard's Models section).
 </Step>
 
 <Step title="Check the balance">
@@ -111,7 +113,7 @@ reconcilable.
 
 <CardGroup cols={2}>
   <Card title="OpenAI-Compatible Gateway" icon="robot" href="/integration/openai-compatible">
-    Streaming, billing headers, two-wallet model, and the Copy-for-AI prompt.
+    Streaming, billing headers, per-project models, and the Copy-for-AI prompt.
   </Card>
   <Card title="Depositing Credits" icon="wallet" href="/integration/depositing-credits">
     Amount units, wallet categories, and idempotency.
