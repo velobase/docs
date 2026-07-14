@@ -46,7 +46,6 @@ billing ledger for work I price myself. Use the reference below; wire up the par
   (OpenAI: last usage chunk; Anthropic: message_delta).
 - 402 insufficient_balance = customer wallet cannot cover the call (body has required/available credits).
   402 byok_key_required = the model has no upstream provider key attached (dashboard config, not balance).
-  403 customer_blocked = the operator blocked this customer in the dashboard; deposits still work.
 - Example (Python, official OpenAI SDK):
     from openai import OpenAI
     client = OpenAI(api_key="vb_live_...", base_url="https://api.velobase.io/v1",
