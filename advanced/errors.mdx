@@ -42,7 +42,7 @@ Below is a list of common `error.code` values you may encounter, organized by ca
     |---|---|
     | `missing_api_key` | No API key was provided in the `Authorization` header. |
     | `invalid_api_key` | The provided API key is malformed or does not exist. |
-    | `api_key_revoked` | The API key has been revoked in the dashboard (Keys section). |
+    | `api_key_revoked` | The API key has been revoked in the dashboard (API keys section). |
   </Accordion>
 
   <Accordion title="Model gateway: customer resolution and routing">
@@ -52,6 +52,7 @@ Below is a list of common `error.code` values you may encounter, organized by ca
     |---|---|---|
     | `customer_not_found` | 404 | The `X-Velobase-Customer` value, or the customer bound to a `vb_customer_` key, does not match any customer. |
     | `customer_required` | 400 | A project key (`vb_live_`) was used on a billable endpoint without an `X-Velobase-Customer: <user-id>` header, so there is no customer to bill. |
+    | `customer_blocked` | 403 | You blocked this customer in the dashboard (Customers section). Every charge path (gateway calls, freeze, deduct) is refused until you unblock them; deposits still work, and the balance is untouched. |
     | `api_key_expired` | 401 | A customer-scoped key (`vb_customer_`) is past its `expiresAt`. |
     | `model_not_found` | 404 | The requested model id does not exist in your project. Models are defined per project; call `GET /v1/models` for your project's list. |
     | `model_inactive` | 404 | The model exists in your project but is currently deactivated. |

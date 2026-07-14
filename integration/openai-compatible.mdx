@@ -34,6 +34,15 @@ per-model pricing in both credits and USD (`input_price_per_million_credits`,
 variants), along with `context_window`, `max_output_tokens`, `display_name`,
 `description`, and `active`.
 
+Models priced by context length (gpt-5.6, several Gemini and Qwen models
+charge a higher rate above a token boundary) additionally carry a
+`pricing_tiers` array. When you pick such a model in the dashboard, its tiers
+prefill automatically from the upstream's published prices and stay editable
+like any other price. At billing time the whole request, output included, is
+charged at the tier its total input tokens reached; see the
+[gateway reference](/api-reference/endpoints#long-context-price-tiers) for the
+exact field shape.
+
 There is no platform-wide model list. A model that exists but has no upstream
 provider key attached returns `402 byok_key_required` (an operator
 configuration issue, distinct from customer balance).

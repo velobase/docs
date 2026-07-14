@@ -67,6 +67,32 @@ Models are defined per project. In the dashboard you create a model with a publi
 
 Each entry from `GET /v1/models` includes: `id`, `object`, `created`, `active`, `owned_by`, `display_name`, `description`, `context_window`, `max_output_tokens`, and pricing fields `input_price_per_million_credits` / `input_price_per_million_usd`, `output_price_per_million_credits` / `output_price_per_million_usd`, `cache_read_price_per_million_credits` / `cache_read_price_per_million_usd`, `cache_write_price_per_million_credits` / `cache_write_price_per_million_usd`.
 
+##### Long-context price tiers
+
+Some upstream models charge more once a request's input crosses a size boundary (for example, gpt-5.6 models switch rates above 272,000 input tokens; several Gemini and Qwen models do the same at their own boundaries). When a model in your project has tiers configured, its `GET /v1/models` entry carries an extra `pricing_tiers` array, ascending by boundary:
+
+```json
+"pricing_tiers": [
+  {
+    "min_input_tokens": 272000,
+    "input_price_per_million_credits": 2000000,
+    "input_price_per_million_usd": "2.0",
+    "output_price_per_million_credits": 9000000,
+    "output_price_per_million_usd": "9.0",
+    "cache_read_price_per_million_credits": 200000,
+    "cache_read_price_per_million_usd": "0.2",
+    "cache_write_price_per_million_credits": 2500000,
+    "cache_write_price_per_million_usd": "2.5",
+    "cache_write_1h_price_per_million_credits": null,
+    "cache_write_1h_price_per_million_usd": null
+  }
+]
+```
+
+How billing picks the tier: the request's total input tokens (fresh input plus every cached bucket) are compared against the boundaries, and the **whole request**, output tokens included, is billed at the highest tier it reached. There is no marginal pricing: one token over the boundary reprices everything. A `null` price inside a tier means that dimension inherits the price below it. Flat-priced models simply omit `pricing_tiers`.
+
+The billing receipt (`GET /v1/billing/receipts/:transaction_id` and the dashboard's Usage detail) records which tier each call landed in, so charges stay auditable.
+
 #### Example request
 
 <CodeGroup>
@@ -120,7 +146,7 @@ npm i @velobaseai/billing@^1.2.0
 
 From Python, call the REST endpoints directly (see the cURL examples on this page) and use the OpenAI SDK for gateway calls.
 
-You can manage models, customers, keys, and usage in the dashboard under Overview, Models, Customers, Keys, Usage, and Settings.
+You can manage models, customers, keys, and usage in the dashboard under Overview, Models, Customers, API keys, Usage, and Settings.
 
 ## Customers
 

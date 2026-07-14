@@ -18,7 +18,7 @@ Customers in Velobase act as virtual accounts. They are tied to your own system'
 **You don't need to manually create customers.**
 When you make an API call to deposit or bill a customer, Velobase automatically creates the customer profile if it doesn't exist yet.
 
-The live project navigation is: Overview, Models, Customers, Keys, Usage, Settings. The **Customers** section is where you inspect each customer's wallets and Ledger.
+The live project navigation is: Overview, Models, Customers, API keys, Usage, Settings. The **Customers** section is where you inspect each customer's wallets and Ledger.
 
 <Note>
 A customer can be billed two ways. With a project key (`vb_live_`) your backend passes `X-Velobase-Customer: <user-id>` to say who to bill. With a customer-scoped key (`vb_customer_`) the key already carries its customer binding, so no header is needed.
@@ -114,6 +114,14 @@ All amounts are in **credits**: 1 USD = 1,000,000 credits. API amount fields (`a
 ## Topping up a wallet
 
 Most wallets are funded when your end users pay you and you call deposit. Send `POST /v1/customers/deposit` with `amount` as integer credits. There is no `/v1/billing/deposit` endpoint.
+
+## Blocking a customer
+
+Blocking is a reversible ban for abuse investigations, chargeback disputes, and similar operator calls. Block or unblock a customer from its row menu in the **Customers** section.
+
+While a customer is blocked, every charge path (gateway calls, freeze, deduct) fails immediately with `403 customer_blocked`. Their balance is untouched and deposits still work, so a blocked customer can still be funded. Unblocking restores everything at once.
+
+Running out of money is not blocking: an unfunded customer's calls return `402 insufficient_balance`, and a negative balance simply shows as Overdrawn.
 
 ## Ledger
 
