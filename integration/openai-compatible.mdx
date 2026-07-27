@@ -138,6 +138,43 @@ curl https://api.velobase.io/v1/chat/completions \
 
 </CodeGroup>
 
+## Images and PDFs
+
+Chat requests can carry images and PDF documents inline, on both protocols,
+for any model whose upstream supports them:
+
+- **Images**: OpenAI-style `image_url` parts (a `data:` URL with base64
+  bytes, or a plain `https:` URL), and Anthropic-style `image` blocks
+  (base64 or url source). The `detail` field is passed through.
+- **PDFs**: OpenAI-style `file` parts (`file.file_data` as a base64 data
+  URL), and Anthropic-style `document` blocks (base64 source). Documents
+  referenced only by URL are rejected with `unsupported_content`; send the
+  bytes.
+- **Images inside tool results** (Anthropic protocol): when a tool returns
+  an image, the gateway re-emits it to the model right after the tool
+  message, so it is never silently dropped.
+
+Audio and video input, file upload endpoints (`/v1/files`), and image
+generation are out of scope; the gateway covers chat with inline vision and
+documents.
+
+Billing needs no extra setup: the upstream's own token accounting already
+prices media, and the gateway settles from it. For the pre-call hold, the
+gateway estimates images from their pixel dimensions and PDFs from their page
+count (read from the file header, never decoded), so `required_credits` on a
+`402` stays close to what the call will really cost.
+
+## How the hold is sized
+
+Before forwarding, the gateway places a temporary hold on the customer's
+wallet: an input part estimated from the request (text length, image
+dimensions, PDF pages) plus an output part sized from `max_tokens`. When the
+call finishes, the real cost is settled and the rest of the hold is released.
+
+Set `max_tokens` on every request you can. Without it the output part is
+reserved at 8,000 tokens, which raises the balance a customer needs to clear
+the `402` check far above the call's typical cost.
+
 ## Request headers
 
 | Header | Meaning |

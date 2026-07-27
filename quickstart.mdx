@@ -57,7 +57,8 @@ curl -X POST https://api.velobase.io/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{
     "model": "your-model-id",
-    "messages": [{ "role": "user", "content": "Hello!" }]
+    "messages": [{ "role": "user", "content": "Hello!" }],
+    "max_tokens": 256
   }'
 ```
 
@@ -72,12 +73,21 @@ client = OpenAI(
 resp = client.chat.completions.create(
     model="your-model-id",
     messages=[{"role": "user", "content": "Hello!"}],
+    max_tokens=256,
     extra_headers={"X-Velobase-Customer": "user_123"},
 )
 print(resp.choices[0].message.content)
 ```
 
 </CodeGroup>
+
+<Note>
+Always set `max_tokens`. Before each call the gateway places a temporary hold
+on the customer's wallet (released or settled when the call finishes), and the
+output part of that hold is sized from `max_tokens`. Without it the gateway
+reserves for a large 8,000-token output, so customers need a much bigger
+balance to pass the `402` check than the call will actually cost.
+</Note>
 
 Velobase forwards the request upstream, settles the real token cost against the customer's wallet, and returns per-call billing details in the response headers:
 

@@ -64,7 +64,7 @@ Below is a list of common `error.code` values you may encounter, organized by ca
 
     | Code | Description |
     |---|---|
-    | `insufficient_balance` | The customer's wallet cannot cover the frozen estimate for this call. The error body includes the required and available credit amounts, so you can drive a paywall or top-up prompt from it. Fix by depositing with `POST /v1/customers/deposit`. |
+    | `insufficient_balance` | The customer's wallet cannot cover the hold for this call. The error body includes the required and available credit amounts, so you can drive a paywall or top-up prompt from it. Fix by depositing with `POST /v1/customers/deposit`. If the request did not set `max_tokens`, the message also says so: the hold then assumes a large 8,000-token output, and setting `max_tokens` lowers `required_credits` substantially. |
     | `byok_key_required` | The model exists, but your project has not attached an upstream provider key to it. This is an operator configuration issue, not a customer balance issue. Fix it in the dashboard's Models section. |
   </Accordion>
 
